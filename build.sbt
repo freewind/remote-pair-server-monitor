@@ -11,7 +11,7 @@ ivyScala := ivyScala.value map {
 }
 
 libraryDependencies in ThisBuild ++= Seq(
-  "com.thoughtworks" %% "remote-pair-server" % "0.4.0",
+  "com.thoughtworks" %% "remote-pair-server" % "0.5.1",
   "commons-lang" % "commons-lang" % "2.6",
   "commons-io" % "commons-io" % "2.0.1",
   "org.scalaz" %% "scalaz-core" % "7.1.3",
