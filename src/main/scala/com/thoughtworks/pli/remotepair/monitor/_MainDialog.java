@@ -9,8 +9,9 @@ public class _MainDialog extends JDialog {
     protected JButton connectButton;
     protected JTree fileTree;
     protected JTextArea fileContentTextArea;
-    protected JList fileVersionList;
+    protected JList<models.VersionNodeData> fileVersionList;
     protected JLabel filePathLabel;
+    protected JLabel serverVersionLabel;
 
     public _MainDialog() {
         setContentPane(contentPane);
