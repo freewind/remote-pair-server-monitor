@@ -5,7 +5,7 @@ import javax.swing.event.{TreeSelectionEvent, TreeSelectionListener}
 import javax.swing.tree.{DefaultMutableTreeNode, DefaultTreeModel}
 
 import com.thoughtworks.pli.intellij.remotepair.protocol._
-import com.thoughtworks.pli.intellij.remotepair.utils.ContentDiff
+import com.thoughtworks.pli.intellij.remotepair.utils.{StringDiff, ContentDiff}
 import com.thoughtworks.pli.remotepair.monitor.SwingVirtualImplicits._
 import io.netty.channel.{ChannelHandlerAdapter, ChannelHandlerContext}
 import monocle.function.Each._
@@ -93,9 +93,16 @@ object MainDialog extends _MainDialog {
     override def valueChanged(e: TreeSelectionEvent): Unit = {
       val nodeData = e.getPath.getLastPathComponent.asInstanceOf[DefaultMutableTreeNode].getUserObject.asInstanceOf[NodeData]
       filePathLabel.setText(nodeData.docPath)
-      fileContentTextArea.setText("content of " + nodeData.docPath)
+      calcLatestContent(nodeData.projectName, nodeData.docPath).foreach(fileContentTextArea.setText)
     }
   })
+
+  def calcLatestContent(projectName: String, docPath: String): Option[String] = {
+    projects.projects.find(_.name == projectName).flatMap(_.docs.find(_.path == docPath)).map { doc =>
+      val allDiffs = doc.changes.flatMap(_.diffs)
+      StringDiff.applyDiffs(doc.baseContent.text, allDiffs)
+    }
+  }
 
 
   private def getInputServerAddress(): Option[ServerAddress] = {
