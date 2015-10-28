@@ -1,7 +1,7 @@
 package com.thoughtworks.pli.remotepair.monitor
 
 import javax.swing.DefaultListModel
-import javax.swing.event.{TreeSelectionEvent, TreeSelectionListener}
+import javax.swing.event.{ListSelectionEvent, ListSelectionListener, TreeSelectionEvent, TreeSelectionListener}
 import javax.swing.tree.{DefaultMutableTreeNode, DefaultTreeModel}
 
 import com.thoughtworks.pli.intellij.remotepair.protocol._
@@ -48,7 +48,7 @@ object MainDialog extends _MainDialog {
 
   @Lenses("_") case class Change(version: Int, diffs: List[ContentDiff])
   @Lenses("_") case class Doc(path: String, baseVersion: Int, baseContent: Content, changes: List[Change] = Nil) {
-    def latestContent: String = StringDiff.applyDiffs(baseContent.text, changes.flatMap(_.diffs))
+    def contentOfVersion(version: Int): String = StringDiff.applyDiffs(baseContent.text, changes.filter(_.version <= version).flatMap(_.diffs))
   }
   @Lenses("_") case class Project(name: String, docs: List[Doc] = Nil)
   @Lenses("_") case class Projects(projects: List[Project] = Nil)
@@ -64,7 +64,7 @@ object MainDialog extends _MainDialog {
     projects = (_projects composeTraversal each).modify(project => {
       if (project.name == projectName) {
         (_docs composeTraversal each).modify(doc => {
-          if (doc.path == event.path) doc.copy(changes = change :: doc.changes) else doc
+          if (doc.path == event.path) doc.copy(changes = doc.changes ::: List(change)) else doc
         })(project)
       } else project
     })(projects)
@@ -106,17 +106,37 @@ object MainDialog extends _MainDialog {
 
   fileTree.addTreeSelectionListener(new TreeSelectionListener {
     override def valueChanged(e: TreeSelectionEvent): Unit = {
-      val nodeData = e.getPath.getLastPathComponent.asInstanceOf[DefaultMutableTreeNode].getUserObject.asInstanceOf[NodeData]
-      filePathLabel.setText(nodeData.docPath)
-      findDoc(nodeData.projectName, nodeData.docPath).foreach { doc =>
-        fileContentTextArea.setText(doc.latestContent)
-        val model = new DefaultListModel[VersionNodeData]()
-        println("### doc: " + doc)
-        doc.changes.foreach { change => model.addElement(VersionNodeData(change.version)) }
-        fileVersionList.setModel(model)
+      findSelectedDoc().foreach { case (projectName, doc) =>
+        filePathLabel.setText(doc.path)
+        showDocVersionList(doc)
       }
     }
   })
+
+  def findSelectedDoc(): Option[(String, Doc)] = {
+    fileTree.getSelectionPath.getLastPathComponent.asInstanceOf[DefaultMutableTreeNode].getUserObject match {
+      case NodeData(projectName, docPath) => projects.projects.find(_.name == projectName).flatMap(_.docs.find(_.path == docPath)).map((projectName, _))
+      case _ => None
+    }
+  }
+
+  def showDocVersionList(doc: Doc): Unit = {
+    val model = new DefaultListModel[VersionNodeData]()
+    doc.changes.foreach(change => model.addElement(VersionNodeData(change.version)))
+    fileVersionList.setModel(model)
+    fileVersionList.addListSelectionListener(new ListSelectionListener {
+      override def valueChanged(e: ListSelectionEvent): Unit = {
+        Option(fileVersionList.getSelectedValue).foreach(updateDocContentToVersion)
+      }
+    })
+    fileVersionList.setSelectedIndex(model.getSize - 1)
+  }
+
+  private def updateDocContentToVersion(version: VersionNodeData): Unit = {
+    findSelectedDoc().foreach { case (_, doc) =>
+      fileContentTextArea.setText(doc.contentOfVersion(version.version))
+    }
+  }
 
   def findDoc(projectName: String, docPath: String): Option[Doc] = {
     projects.projects.find(_.name == projectName).flatMap(_.docs.find(_.path == docPath))
