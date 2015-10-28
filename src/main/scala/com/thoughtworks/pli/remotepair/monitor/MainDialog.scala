@@ -1,12 +1,13 @@
 package com.thoughtworks.pli.remotepair.monitor
 
-import java.awt.event.{MouseEvent, MouseAdapter}
+import javax.swing.DefaultListModel
 import javax.swing.event.{TreeSelectionEvent, TreeSelectionListener}
 import javax.swing.tree.{DefaultMutableTreeNode, DefaultTreeModel}
 
 import com.thoughtworks.pli.intellij.remotepair.protocol._
-import com.thoughtworks.pli.intellij.remotepair.utils.{StringDiff, ContentDiff}
+import com.thoughtworks.pli.intellij.remotepair.utils.{ContentDiff, StringDiff}
 import com.thoughtworks.pli.remotepair.monitor.SwingVirtualImplicits._
+import com.thoughtworks.pli.remotepair.monitor.models.VersionNodeData
 import io.netty.channel.{ChannelHandlerAdapter, ChannelHandlerContext}
 import monocle.function.Each._
 import monocle.macros.Lenses
@@ -31,6 +32,7 @@ object MainDialog extends _MainDialog {
         }
         override def channelRead(ctx: ChannelHandlerContext, msg: scala.Any): Unit = {
           msg match {
+            case event: ServerVersionInfo => handleServerVersionInfo(event)
             case event: ServerStatusResponse => handleServerStatusResponse(event)
             case MonitorEvent(projectName, realEventMessage, _) => parseEvent(realEventMessage) match {
               case event: CreateDocumentConfirmation => handleCreateDocumentConfirmation(projectName, event)
@@ -45,7 +47,9 @@ object MainDialog extends _MainDialog {
   }
 
   @Lenses("_") case class Change(version: Int, diffs: List[ContentDiff])
-  @Lenses("_") case class Doc(path: String, baseVersion: Int, baseContent: Content, changes: List[Change] = Nil)
+  @Lenses("_") case class Doc(path: String, baseVersion: Int, baseContent: Content, changes: List[Change] = Nil) {
+    def latestContent: String = StringDiff.applyDiffs(baseContent.text, changes.flatMap(_.diffs))
+  }
   @Lenses("_") case class Project(name: String, docs: List[Doc] = Nil)
   @Lenses("_") case class Projects(projects: List[Project] = Nil)
 
@@ -57,22 +61,32 @@ object MainDialog extends _MainDialog {
 
   private def handleChangeContentConfirmation(projectName: String, event: ChangeContentConfirmation): Unit = {
     val change = Change(event.newVersion, event.diffs.toList)
-    def addChange(doc: Doc): Doc = if (doc.path == event.path) doc.copy(changes = change :: doc.changes) else doc
-    projects = (_projects composeTraversal each composeLens _docs composeTraversal each).modify(addChange)(projects)
+    projects = (_projects composeTraversal each).modify(project => {
+      if (project.name == projectName) {
+        (_docs composeTraversal each).modify(doc => {
+          if (doc.path == event.path) doc.copy(changes = change :: doc.changes) else doc
+        })(project)
+      } else project
+    })(projects)
   }
 
   private def handleCreateDocumentConfirmation(projectName: String, event: CreateDocumentConfirmation) = {
     val doc = Doc(event.path, baseVersion = event.version, baseContent = event.content)
-    def addDoc(docs: List[Doc]): List[Doc] = (doc :: docs).sortBy(_.path)
-    projects = (_projects composeTraversal each composeLens _docs).modify(addDoc)(projects)
+    val trans = (_projects composeTraversal each).modify(project => {
+      if (project.name == projectName) _docs.modify(docs => (doc :: docs).sortBy(_.path))(project) else project
+    })
+    projects = trans(projects)
     createTree()
   }
 
-  private def handleServerStatusResponse(event: ServerStatusResponse) = {
+  private def handleServerVersionInfo(event: ServerVersionInfo): Unit = {
+    serverVersionLabel.setText("server version: " + event.version)
+  }
+
+  private def handleServerStatusResponse(event: ServerStatusResponse): Unit = {
     projects = Projects(event.projects.map(info => Project(info.name)).toList)
     createTree()
   }
-
 
   case class NodeData(projectName: String, docPath: String) {
     override def toString: String = docPath
@@ -89,21 +103,24 @@ object MainDialog extends _MainDialog {
     fileTree.updateUI()
   }
 
+
   fileTree.addTreeSelectionListener(new TreeSelectionListener {
     override def valueChanged(e: TreeSelectionEvent): Unit = {
       val nodeData = e.getPath.getLastPathComponent.asInstanceOf[DefaultMutableTreeNode].getUserObject.asInstanceOf[NodeData]
       filePathLabel.setText(nodeData.docPath)
-      calcLatestContent(nodeData.projectName, nodeData.docPath).foreach(fileContentTextArea.setText)
+      findDoc(nodeData.projectName, nodeData.docPath).foreach { doc =>
+        fileContentTextArea.setText(doc.latestContent)
+        val model = new DefaultListModel[VersionNodeData]()
+        println("### doc: " + doc)
+        doc.changes.foreach { change => model.addElement(VersionNodeData(change.version)) }
+        fileVersionList.setModel(model)
+      }
     }
   })
 
-  def calcLatestContent(projectName: String, docPath: String): Option[String] = {
-    projects.projects.find(_.name == projectName).flatMap(_.docs.find(_.path == docPath)).map { doc =>
-      val allDiffs = doc.changes.flatMap(_.diffs)
-      StringDiff.applyDiffs(doc.baseContent.text, allDiffs)
-    }
+  def findDoc(projectName: String, docPath: String): Option[Doc] = {
+    projects.projects.find(_.name == projectName).flatMap(_.docs.find(_.path == docPath))
   }
-
 
   private def getInputServerAddress(): Option[ServerAddress] = {
     serverAddressTextField.trimmedText.split(":") match {
