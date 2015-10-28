@@ -1,5 +1,7 @@
 package com.thoughtworks.pli.remotepair.monitor
 
+import java.awt.event.{MouseEvent, MouseAdapter}
+import javax.swing.event.{TreeSelectionEvent, TreeSelectionListener}
 import javax.swing.tree.{DefaultMutableTreeNode, DefaultTreeModel}
 
 import com.thoughtworks.pli.intellij.remotepair.protocol._
@@ -71,16 +73,30 @@ object MainDialog extends _MainDialog {
     createTree()
   }
 
+
+  case class NodeData(projectName: String, docPath: String) {
+    override def toString: String = docPath
+  }
+
   private def createTree(): Unit = {
     val root = new DefaultMutableTreeNode("projects")
-    projects.projects.foreach(p => {
-      val pNode = new DefaultMutableTreeNode(p.name)
-      p.docs.foreach(d => pNode.add(new DefaultMutableTreeNode(d.path)))
+    projects.projects.foreach(project => {
+      val pNode = new DefaultMutableTreeNode(project.name)
+      project.docs.foreach(doc => pNode.add(new DefaultMutableTreeNode(NodeData(project.name, doc.path))))
       root.add(pNode)
     })
     fileTree.setModel(new DefaultTreeModel(root))
     fileTree.updateUI()
   }
+
+  fileTree.addTreeSelectionListener(new TreeSelectionListener {
+    override def valueChanged(e: TreeSelectionEvent): Unit = {
+      val nodeData = e.getPath.getLastPathComponent.asInstanceOf[DefaultMutableTreeNode].getUserObject.asInstanceOf[NodeData]
+      filePathLabel.setText(nodeData.docPath)
+      fileContentTextArea.setText("content of " + nodeData.docPath)
+    }
+  })
+
 
   private def getInputServerAddress(): Option[ServerAddress] = {
     serverAddressTextField.trimmedText.split(":") match {
