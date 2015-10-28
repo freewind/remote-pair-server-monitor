@@ -48,6 +48,7 @@ object MainDialog extends _MainDialog {
 
   @Lenses("_") case class Change(version: Int, diffs: List[ContentDiff])
   @Lenses("_") case class Doc(path: String, baseVersion: Int, baseContent: Content, changes: List[Change] = Nil) {
+    def latestVersion: Int = changes.lastOption.map(_.version).getOrElse(baseVersion)
     def contentOfVersion(version: Int): String = StringDiff.applyDiffs(baseContent.text, changes.filter(_.version <= version).flatMap(_.diffs))
   }
   @Lenses("_") case class Project(name: String, docs: List[Doc] = Nil)
@@ -68,6 +69,23 @@ object MainDialog extends _MainDialog {
         })(project)
       } else project
     })(projects)
+
+    updateDisplayedSelectedDoc()
+  }
+
+  def updateDisplayedSelectedDoc(): Unit = {
+    findSelectedDoc().foreach { case (projectName, doc) =>
+      if (doc.changes.size > docVersionList.getModel.getSize) {
+        val previousVersion = docVersionList.getSelectedValue.version
+        val followChanges = docVersionList.getSelectedIndex == docVersionList.getModel.getSize - 1
+        createDocVersionList(doc)
+        if (followChanges) {
+          selectDocVersion(doc.latestVersion)
+        } else {
+          selectDocVersion(previousVersion)
+        }
+      }
+    }
   }
 
   private def handleCreateDocumentConfirmation(projectName: String, event: CreateDocumentConfirmation) = {
@@ -108,28 +126,34 @@ object MainDialog extends _MainDialog {
     override def valueChanged(e: TreeSelectionEvent): Unit = {
       findSelectedDoc().foreach { case (projectName, doc) =>
         filePathLabel.setText(doc.path)
-        showDocVersionList(doc)
+        createDocVersionList(doc)
       }
     }
   })
 
   def findSelectedDoc(): Option[(String, Doc)] = {
-    fileTree.getSelectionPath.getLastPathComponent.asInstanceOf[DefaultMutableTreeNode].getUserObject match {
-      case NodeData(projectName, docPath) => projects.projects.find(_.name == projectName).flatMap(_.docs.find(_.path == docPath)).map((projectName, _))
+    Option(fileTree.getSelectionPath).map(_.getLastPathComponent.asInstanceOf[DefaultMutableTreeNode].getUserObject) match {
+      case Some(NodeData(projectName, docPath)) => projects.projects.find(_.name == projectName).flatMap(_.docs.find(_.path == docPath)).map((projectName, _))
       case _ => None
     }
   }
 
-  def showDocVersionList(doc: Doc): Unit = {
+  private def createDocVersionList(doc: Doc): Unit = {
     val model = new DefaultListModel[VersionNodeData]()
     doc.changes.foreach(change => model.addElement(VersionNodeData(change.version)))
-    fileVersionList.setModel(model)
-    fileVersionList.addListSelectionListener(new ListSelectionListener {
+    docVersionList.setModel(model)
+    docVersionList.addListSelectionListener(new ListSelectionListener {
       override def valueChanged(e: ListSelectionEvent): Unit = {
-        Option(fileVersionList.getSelectedValue).foreach(updateDocContentToVersion)
+        Option(docVersionList.getSelectedValue).foreach(updateDocContentToVersion)
       }
     })
-    fileVersionList.setSelectedIndex(model.getSize - 1)
+    selectDocVersion(doc.latestVersion)
+  }
+
+  private def selectDocVersion(version: Int): Unit = {
+    (0 until docVersionList.getModel.getSize)
+      .find(index => docVersionList.getModel.getElementAt(index).version == version)
+      .foreach(docVersionList.setSelectedIndex)
   }
 
   private def updateDocContentToVersion(version: VersionNodeData): Unit = {
