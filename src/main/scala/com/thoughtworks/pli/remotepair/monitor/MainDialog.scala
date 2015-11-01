@@ -64,13 +64,13 @@ object MainDialog extends _MainDialog {
   def updateDisplayedSelectedDoc(): Unit = {
     findSelectedDoc().foreach { case (projectName, doc) =>
       if (doc.changes.size > docVersionList.getModel.getSize) {
-        val previousVersion = docVersionList.getSelectedValue.version
+        val previousVersion = Option(docVersionList.getSelectedValue).map(_.version)
         val followChanges = docVersionList.getSelectedIndex == docVersionList.getModel.getSize - 1
         createDocVersionList(doc)
         if (followChanges) {
           selectDocVersion(doc.latestVersion)
         } else {
-          selectDocVersion(previousVersion)
+          previousVersion.foreach(selectDocVersion)
         }
       }
     }
@@ -126,6 +126,7 @@ object MainDialog extends _MainDialog {
 
   private def createDocVersionList(doc: Doc): Unit = {
     val model = new DefaultListModel[VersionItemData]()
+    model.addElement(VersionItemData(doc.baseVersion, "???"))
     doc.changes.foreach(change => model.addElement(VersionItemData(change.version, change.editorName)))
     docVersionList.setModel(model)
     docVersionList.addListSelectionListener(new ListSelectionListener {
