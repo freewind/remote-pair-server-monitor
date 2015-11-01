@@ -169,6 +169,7 @@ object MainDialog extends _MainDialog {
 
   def main(args: Array[String]) {
     this.pack()
+    this.setSize(800, 600)
     this.setVisible(true)
     System.exit(0)
   }
