@@ -4,14 +4,12 @@ import javax.swing.DefaultListModel
 import javax.swing.event.{ListSelectionEvent, ListSelectionListener, TreeSelectionEvent, TreeSelectionListener}
 import javax.swing.tree.{DefaultMutableTreeNode, DefaultTreeModel}
 
+import com.softwaremill.quicklens._
 import com.thoughtworks.pli.intellij.remotepair.protocol._
 import com.thoughtworks.pli.intellij.remotepair.utils.{ContentDiff, StringDiff}
 import com.thoughtworks.pli.remotepair.monitor.SwingVirtualImplicits._
 import com.thoughtworks.pli.remotepair.monitor.models.VersionNodeData
 import io.netty.channel.{ChannelHandlerAdapter, ChannelHandlerContext}
-import monocle.function.Each._
-import monocle.macros.Lenses
-import monocle.std.list._
 
 import scala.util.Try
 
@@ -37,7 +35,7 @@ object MainDialog extends _MainDialog {
             case MonitorEvent(projectName, realEventMessage, _) => parseEvent(realEventMessage) match {
               case event: CreateDocumentConfirmation => handleCreateDocumentConfirmation(projectName, event)
               case event: ChangeContentConfirmation => handleChangeContentConfirmation(projectName, event)
-              case other => println("### s" + other.toMessage)
+              case other => println("### other: " + other.toMessage)
             }
             case _ => ???
           }
@@ -46,30 +44,20 @@ object MainDialog extends _MainDialog {
     }
   }
 
-  @Lenses("_") case class Change(version: Int, diffs: List[ContentDiff])
-  @Lenses("_") case class Doc(path: String, baseVersion: Int, baseContent: Content, changes: List[Change] = Nil) {
+  case class Change(version: Int, diffs: List[ContentDiff])
+  case class Doc(path: String, baseVersion: Int, baseContent: Content, changes: List[Change] = Nil) {
     def latestVersion: Int = changes.lastOption.map(_.version).getOrElse(baseVersion)
     def contentOfVersion(version: Int): String = StringDiff.applyDiffs(baseContent.text, changes.filter(_.version <= version).flatMap(_.diffs))
   }
-  @Lenses("_") case class Project(name: String, docs: List[Doc] = Nil)
-  @Lenses("_") case class Projects(projects: List[Project] = Nil)
-
-  import Project._
-  import Projects._
-
+  case class Project(name: String, docs: List[Doc] = Nil)
+  case class Projects(projects: List[Project] = Nil)
 
   private var projects: Projects = Projects()
 
   private def handleChangeContentConfirmation(projectName: String, event: ChangeContentConfirmation): Unit = {
     val change = Change(event.newVersion, event.diffs.toList)
-    projects = (_projects composeTraversal each).modify(project => {
-      if (project.name == projectName) {
-        (_docs composeTraversal each).modify(doc => {
-          if (doc.path == event.path) doc.copy(changes = doc.changes ::: List(change)) else doc
-        })(project)
-      } else project
-    })(projects)
-
+    projects = projects.modify(_.projects.eachWhere(_.name == projectName).docs.eachWhere(_.path == event.path).changes)
+      .using(_ ::: List(change))
     updateDisplayedSelectedDoc()
   }
 
@@ -90,10 +78,8 @@ object MainDialog extends _MainDialog {
 
   private def handleCreateDocumentConfirmation(projectName: String, event: CreateDocumentConfirmation) = {
     val doc = Doc(event.path, baseVersion = event.version, baseContent = event.content)
-    val trans = (_projects composeTraversal each).modify(project => {
-      if (project.name == projectName) _docs.modify(docs => (doc :: docs).sortBy(_.path))(project) else project
-    })
-    projects = trans(projects)
+    projects = projects.modify(_.projects.eachWhere(_.name == projectName).docs)
+      .using(docs => (doc :: docs).sortBy(_.path))
     createTree()
   }
 
