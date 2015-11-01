@@ -8,7 +8,7 @@ import com.softwaremill.quicklens._
 import com.thoughtworks.pli.intellij.remotepair.protocol._
 import com.thoughtworks.pli.intellij.remotepair.utils.{ContentDiff, StringDiff}
 import com.thoughtworks.pli.remotepair.monitor.SwingVirtualImplicits._
-import com.thoughtworks.pli.remotepair.monitor.models.VersionNodeData
+import com.thoughtworks.pli.remotepair.monitor.models.VersionItemData
 import io.netty.channel.{ChannelHandlerAdapter, ChannelHandlerContext}
 
 import scala.util.Try
@@ -44,7 +44,7 @@ object MainDialog extends _MainDialog {
     }
   }
 
-  case class Change(version: Int, diffs: List[ContentDiff])
+  case class Change(version: Int, diffs: List[ContentDiff], editorName: String)
   case class Doc(path: String, baseVersion: Int, baseContent: Content, changes: List[Change] = Nil) {
     def latestVersion: Int = changes.lastOption.map(_.version).getOrElse(baseVersion)
     def contentOfVersion(version: Int): String = StringDiff.applyDiffs(baseContent.text, changes.filter(_.version <= version).flatMap(_.diffs))
@@ -55,7 +55,7 @@ object MainDialog extends _MainDialog {
   private var projects: Projects = Projects()
 
   private def handleChangeContentConfirmation(projectName: String, event: ChangeContentConfirmation): Unit = {
-    val change = Change(event.newVersion, event.diffs.toList)
+    val change = Change(event.newVersion, event.diffs.toList, event.editorName)
     projects = projects.modify(_.projects.eachWhere(_.name == projectName).docs.eachWhere(_.path == event.path).changes)
       .using(_ ::: List(change))
     updateDisplayedSelectedDoc()
@@ -125,8 +125,8 @@ object MainDialog extends _MainDialog {
   }
 
   private def createDocVersionList(doc: Doc): Unit = {
-    val model = new DefaultListModel[VersionNodeData]()
-    doc.changes.foreach(change => model.addElement(VersionNodeData(change.version)))
+    val model = new DefaultListModel[VersionItemData]()
+    doc.changes.foreach(change => model.addElement(VersionItemData(change.version, change.editorName)))
     docVersionList.setModel(model)
     docVersionList.addListSelectionListener(new ListSelectionListener {
       override def valueChanged(e: ListSelectionEvent): Unit = {
@@ -142,7 +142,7 @@ object MainDialog extends _MainDialog {
       .foreach(docVersionList.setSelectedIndex)
   }
 
-  private def updateDocContentToVersion(version: VersionNodeData): Unit = {
+  private def updateDocContentToVersion(version: VersionItemData): Unit = {
     findSelectedDoc().foreach { case (_, doc) =>
       fileContentTextArea.setText(doc.contentOfVersion(version.version))
     }

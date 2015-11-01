@@ -2,8 +2,8 @@ package com.thoughtworks.pli.remotepair.monitor
 
 object models {
 
-  case class VersionNodeData(version: Int) {
-    override def toString: String = version.toString
+  case class VersionItemData(version: Int, editorName: String) {
+    override def toString: String = editorName + ": " + version.toString
   }
 
 }

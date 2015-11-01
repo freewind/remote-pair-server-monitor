@@ -9,7 +9,7 @@ public class _MainDialog extends JDialog {
     protected JButton connectButton;
     protected JTree fileTree;
     protected JTextArea fileContentTextArea;
-    protected JList<models.VersionNodeData> docVersionList;
+    protected JList<models.VersionItemData> docVersionList;
     protected JLabel filePathLabel;
     protected JLabel serverVersionLabel;
 
