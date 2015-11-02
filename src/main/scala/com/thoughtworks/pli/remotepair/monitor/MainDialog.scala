@@ -6,10 +6,11 @@ import javax.swing.tree.{DefaultMutableTreeNode, DefaultTreeModel}
 
 import com.softwaremill.quicklens._
 import com.thoughtworks.pli.intellij.remotepair.protocol._
-import com.thoughtworks.pli.intellij.remotepair.utils.{ContentDiff, StringDiff}
+import com.thoughtworks.pli.intellij.remotepair.utils.{StringOperation, StringDiff}
 import com.thoughtworks.pli.remotepair.monitor.SwingVirtualImplicits._
 import com.thoughtworks.pli.remotepair.monitor.models.VersionItemData
-import io.netty.channel.{ChannelHandlerAdapter, ChannelHandlerContext}
+import io.netty.channel.{ChannelFuture, ChannelHandlerAdapter, ChannelHandlerContext}
+import io.netty.util.concurrent.GenericFutureListener
 
 import scala.util.Try
 
@@ -20,10 +21,11 @@ object MainDialog extends _MainDialog {
   case class ServerAddress(ip: String, port: Int)
 
   private val parseEvent = new ParseEvent
+  private var channelFuture: Option[ChannelFuture] = None
 
   private def connectToServer(serverAddress: ServerAddress): Unit = {
     if (nettyClient.isEmpty) nettyClient = Some(new NettyClient(serverAddress)(parseEvent))
-    nettyClient.foreach { client =>
+    channelFuture = nettyClient.map { client =>
       client.connect(new ChannelHandlerAdapter {
         override def channelActive(ctx: ChannelHandlerContext): Unit = {
           ctx.writeAndFlush(ImMonitor.toMessage)
@@ -44,10 +46,10 @@ object MainDialog extends _MainDialog {
     }
   }
 
-  case class Change(version: Int, diffs: List[ContentDiff], editorName: String)
+  case class Change(version: Int, diffs: List[StringOperation], editorName: String)
   case class Doc(path: String, baseVersion: Int, baseContent: Content, changes: List[Change] = Nil) {
     def latestVersion: Int = changes.lastOption.map(_.version).getOrElse(baseVersion)
-    def contentOfVersion(version: Int): String = StringDiff.applyDiffs(baseContent.text, changes.filter(_.version <= version).flatMap(_.diffs))
+    def contentOfVersion(version: Int): String = StringDiff.applyOperations(baseContent.text, changes.filter(_.version <= version).flatMap(_.diffs))
   }
   case class Project(name: String, docs: List[Doc] = Nil)
   case class Projects(projects: List[Project] = Nil)
@@ -161,11 +163,24 @@ object MainDialog extends _MainDialog {
   }
 
   connectButton.onClick {
-    println("### clicked on connectButton")
     getInputServerAddress() match {
       case Some(serverAddress) => connectToServer(serverAddress)
       case _ => serverAddressTextField.requestFocus()
     }
+  }
+
+  closeButton.onClick {
+    channelFuture.foreach(_.channel().close().sync().addListener(new GenericFutureListener[ChannelFuture] {
+      override def operationComplete(future: ChannelFuture): Unit = clearAll()
+    }))
+  }
+
+  private def clearAll(): Unit = {
+    fileTree.setModel(null)
+    println("#### docVersionList.getModel: " + docVersionList.getModel.getClass)
+    docVersionList.setModel(new DefaultListModel[VersionItemData]())
+    fileContentTextArea.setText("")
+    filePathLabel.setText("")
   }
 
   def main(args: Array[String]) {

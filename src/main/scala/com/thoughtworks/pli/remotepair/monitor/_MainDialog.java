@@ -12,6 +12,7 @@ public class _MainDialog extends JDialog {
     protected JList<models.VersionItemData> docVersionList;
     protected JLabel filePathLabel;
     protected JLabel serverVersionLabel;
+    protected JButton closeButton;
 
     public _MainDialog() {
         setContentPane(contentPane);
