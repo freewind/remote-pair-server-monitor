@@ -6,6 +6,7 @@ import javax.swing.tree.{DefaultMutableTreeNode, DefaultTreeModel}
 
 import com.softwaremill.quicklens._
 import com.thoughtworks.pli.intellij.remotepair.protocol._
+import com.thoughtworks.pli.intellij.remotepair.server.ClientIdName
 import com.thoughtworks.pli.intellij.remotepair.utils.{StringOperation, StringDiff}
 import com.thoughtworks.pli.remotepair.monitor.SwingVirtualImplicits._
 import com.thoughtworks.pli.remotepair.monitor.models.VersionItemData
@@ -46,8 +47,8 @@ object MainDialog extends _MainDialog {
     }
   }
 
-  case class Change(version: Int, diffs: List[StringOperation], editorName: String)
-  case class Doc(path: String, baseVersion: Int, baseContent: Content, changes: List[Change] = Nil) {
+  case class Change(version: Int, diffs: List[StringOperation], sourceClient: ClientIdName)
+  case class Doc(path: String, baseVersion: Int, baseContent: Content, baseSourceClient: ClientIdName, changes: List[Change] = Nil) {
     def latestVersion: Int = changes.lastOption.map(_.version).getOrElse(baseVersion)
     def contentOfVersion(version: Int): String = StringDiff.applyOperations(baseContent.text, changes.filter(_.version <= version).flatMap(_.diffs))
   }
@@ -57,7 +58,7 @@ object MainDialog extends _MainDialog {
   private var projects: Projects = Projects()
 
   private def handleChangeContentConfirmation(projectName: String, event: ChangeContentConfirmation): Unit = {
-    val change = Change(event.newVersion, event.diffs.toList, event.editorName)
+    val change = Change(event.newVersion, event.diffs.toList, event.sourceClient)
     projects = projects.modify(_.projects.eachWhere(_.name == projectName).docs.eachWhere(_.path == event.path).changes)
       .using(_ ::: List(change))
     updateDisplayedSelectedDoc()
@@ -79,7 +80,7 @@ object MainDialog extends _MainDialog {
   }
 
   private def handleCreateDocumentConfirmation(projectName: String, event: CreateDocumentConfirmation) = {
-    val doc = Doc(event.path, baseVersion = event.version, baseContent = event.content)
+    val doc = Doc(event.path, event.version, event.content, event.sourceClient)
     projects = projects.modify(_.projects.eachWhere(_.name == projectName).docs)
       .using(docs => (doc :: docs).sortBy(_.path))
     createTree()
@@ -128,8 +129,8 @@ object MainDialog extends _MainDialog {
 
   private def createDocVersionList(doc: Doc): Unit = {
     val model = new DefaultListModel[VersionItemData]()
-    model.addElement(VersionItemData(doc.baseVersion, "???"))
-    doc.changes.foreach(change => model.addElement(VersionItemData(change.version, change.editorName)))
+    model.addElement(VersionItemData(doc.baseVersion, doc.baseSourceClient))
+    doc.changes.foreach(change => model.addElement(VersionItemData(change.version, change.sourceClient)))
     docVersionList.setModel(model)
     docVersionList.addListSelectionListener(new ListSelectionListener {
       override def valueChanged(e: ListSelectionEvent): Unit = {
