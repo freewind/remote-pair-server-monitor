@@ -6,10 +6,8 @@ import javax.swing.tree.{DefaultMutableTreeNode, DefaultTreeModel}
 
 import com.softwaremill.quicklens._
 import com.thoughtworks.pli.intellij.remotepair.protocol._
-import com.thoughtworks.pli.intellij.remotepair.server.ClientIdName
-import com.thoughtworks.pli.intellij.remotepair.utils.{StringOperation, StringDiff}
 import com.thoughtworks.pli.remotepair.monitor.SwingVirtualImplicits._
-import com.thoughtworks.pli.remotepair.monitor.models.VersionItemData
+import com.thoughtworks.pli.remotepair.monitor.models._
 import io.netty.channel.{ChannelFuture, ChannelHandlerAdapter, ChannelHandlerContext}
 import io.netty.util.concurrent.GenericFutureListener
 
@@ -47,13 +45,6 @@ object MainDialog extends _MainDialog {
     }
   }
 
-  case class Change(version: Int, diffs: List[StringOperation], sourceClient: ClientIdName)
-  case class Doc(path: String, baseVersion: Int, baseContent: Content, baseSourceClient: ClientIdName, changes: List[Change] = Nil) {
-    def latestVersion: Int = changes.lastOption.map(_.version).getOrElse(baseVersion)
-    def contentOfVersion(version: Int): String = StringDiff.applyOperations(baseContent.text, changes.filter(_.version <= version).flatMap(_.diffs))
-  }
-  case class Project(name: String, docs: List[Doc] = Nil)
-  case class Projects(projects: List[Project] = Nil)
 
   private var projects: Projects = Projects()
 
