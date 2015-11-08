@@ -49,15 +49,15 @@ object MainDialog extends _MainDialog {
   private var projects: Projects = Projects()
 
   private def handleChangeContentConfirmation(projectName: String, event: ChangeContentConfirmation): Unit = {
-    val change = Change(event.newVersion, event.diffs.toList, event.sourceClient)
-    projects = projects.modify(_.projects.eachWhere(_.name == projectName).docs.eachWhere(_.path == event.path).changes)
+    val change = ContentChange(event.newVersion, event.diffs.toList, event.sourceClient)
+    projects = projects.modify(_.projects.eachWhere(_.name == projectName).docs.eachWhere(_.path == event.path).events)
       .using(_ ::: List(change))
     updateDisplayedSelectedDoc()
   }
 
   def updateDisplayedSelectedDoc(): Unit = {
     findSelectedDoc().foreach { case (projectName, doc) =>
-      if (doc.changes.size > docEventList.getModel.getSize) {
+      if (doc.events.size > docEventList.getModel.getSize) {
         val previousVersion = Option(docEventList.getSelectedValue).map(_.version)
         val followChanges = docEventList.getSelectedIndex == docEventList.getModel.getSize - 1
         createDocVersionList(doc)
@@ -121,7 +121,7 @@ object MainDialog extends _MainDialog {
   private def createDocVersionList(doc: Doc): Unit = {
     val model = new DefaultListModel[VersionItemData]()
     model.addElement(VersionItemData(doc.baseVersion, doc.baseSourceClient))
-    doc.changes.foreach(change => model.addElement(VersionItemData(change.version, change.sourceClient)))
+    doc.contentChanges.foreach(change => model.addElement(VersionItemData(change.version, change.sourceClient)))
     docEventList.setModel(model)
     docEventList.addListSelectionListener(new ListSelectionListener {
       override def valueChanged(e: ListSelectionEvent): Unit = {
