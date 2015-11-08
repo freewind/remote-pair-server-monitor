@@ -124,7 +124,7 @@
                             <properties/>
                             <border type="none"/>
                             <children>
-                              <component id="cd2d9" class="javax.swing.JList" binding="docVersionList">
+                              <component id="cd2d9" class="javax.swing.JList" binding="docEventList">
                                 <constraints/>
                                 <properties/>
                               </component>

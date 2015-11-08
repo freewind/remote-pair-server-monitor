@@ -66,9 +66,9 @@ object MainDialog extends _MainDialog {
 
   def updateDisplayedSelectedDoc(): Unit = {
     findSelectedDoc().foreach { case (projectName, doc) =>
-      if (doc.changes.size > docVersionList.getModel.getSize) {
-        val previousVersion = Option(docVersionList.getSelectedValue).map(_.version)
-        val followChanges = docVersionList.getSelectedIndex == docVersionList.getModel.getSize - 1
+      if (doc.changes.size > docEventList.getModel.getSize) {
+        val previousVersion = Option(docEventList.getSelectedValue).map(_.version)
+        val followChanges = docEventList.getSelectedIndex == docEventList.getModel.getSize - 1
         createDocVersionList(doc)
         if (followChanges) {
           selectDocVersion(doc.latestVersion)
@@ -131,19 +131,19 @@ object MainDialog extends _MainDialog {
     val model = new DefaultListModel[VersionItemData]()
     model.addElement(VersionItemData(doc.baseVersion, doc.baseSourceClient))
     doc.changes.foreach(change => model.addElement(VersionItemData(change.version, change.sourceClient)))
-    docVersionList.setModel(model)
-    docVersionList.addListSelectionListener(new ListSelectionListener {
+    docEventList.setModel(model)
+    docEventList.addListSelectionListener(new ListSelectionListener {
       override def valueChanged(e: ListSelectionEvent): Unit = {
-        Option(docVersionList.getSelectedValue).foreach(updateDocContentToVersion)
+        Option(docEventList.getSelectedValue).foreach(updateDocContentToVersion)
       }
     })
     selectDocVersion(doc.latestVersion)
   }
 
   private def selectDocVersion(version: Int): Unit = {
-    (0 until docVersionList.getModel.getSize)
-      .find(index => docVersionList.getModel.getElementAt(index).version == version)
-      .foreach(docVersionList.setSelectedIndex)
+    (0 until docEventList.getModel.getSize)
+      .find(index => docEventList.getModel.getElementAt(index).version == version)
+      .foreach(docEventList.setSelectedIndex)
   }
 
   private def updateDocContentToVersion(version: VersionItemData): Unit = {
@@ -178,8 +178,8 @@ object MainDialog extends _MainDialog {
 
   private def clearAll(): Unit = {
     fileTree.setModel(null)
-    println("#### docVersionList.getModel: " + docVersionList.getModel.getClass)
-    docVersionList.setModel(new DefaultListModel[VersionItemData]())
+    println("#### docEventList.getModel: " + docEventList.getModel.getClass)
+    docEventList.setModel(new DefaultListModel[VersionItemData]())
     fileContentTextArea.setText("")
     filePathLabel.setText("")
   }
