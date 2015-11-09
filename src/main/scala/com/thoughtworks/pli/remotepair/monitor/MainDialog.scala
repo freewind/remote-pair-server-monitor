@@ -150,11 +150,11 @@ trait VirtualDialog {
 
   private def updateDocContentToItem(itemData: DocEventItemData): Unit = {
     findSelectedDoc().foreach { case DocInProject(_, doc) =>
-      val newContent: String = itemData.data.map(_.id) match {
-        case -\/(baseContent) => baseContent.content.text
-        case \/-(eventId) => doc.contentAtEvent(eventId)
+      val (newContent, caret) = itemData.data.map(_.id) match {
+        case -\/(baseContent) => (baseContent.content.text, None)
+        case \/-(eventId) => (doc.contentAtEvent(eventId), doc.caretAtEvent(eventId))
       }
-      fileContentHtmlPane.html = newContent
+      fileContentHtmlPane.setHtml(HtmlCodeContentGenerator.convert(newContent), caret.map(_ + 1))
     }
   }
 
@@ -173,8 +173,8 @@ trait VirtualDialog {
   private def clearAll(): Unit = {
     fileTree.clear()
     docEventList.clearItems()
-    fileContentHtmlPane.html = ""
-    filePathLabel.text = ""
+    fileContentHtmlPane.clear()
+    filePathLabel.clear()
   }
 
 }

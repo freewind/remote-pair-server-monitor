@@ -1,14 +1,12 @@
 package com.thoughtworks.pli.remotepair.monitor
 
 import java.awt.Color
-import java.awt.event.{ActionEvent, ActionListener, WindowAdapter, WindowEvent}
+import java.awt.event._
 import javax.swing._
-import javax.swing.event.{TreeSelectionEvent, TreeSelectionListener, ListSelectionEvent, ListSelectionListener}
-import javax.swing.text.Document
-import javax.swing.text.html.{StyleSheet, HTMLEditorKit}
-import javax.swing.tree.{DefaultTreeModel, DefaultMutableTreeNode}
-
-import com.thoughtworks.pli.remotepair.monitor.MainDialog._
+import javax.swing.event.{ListSelectionEvent, ListSelectionListener, TreeSelectionEvent, TreeSelectionListener}
+import javax.swing.text.DefaultCaret
+import javax.swing.text.html.HTMLEditorKit
+import javax.swing.tree.{DefaultMutableTreeNode, DefaultTreeModel}
 
 object SwingVirtualImplicits {
 
@@ -56,15 +54,36 @@ object SwingVirtualImplicits {
 
     textPane.setContentType("text/html")
     textPane.setEnabled(true)
-    textPane.setEditable(false)
+    textPane.setEditable(true)
+    textPane.setCaret(new DefaultCaret {
+      override def focusLost(e: FocusEvent): Unit = {
+        super.focusLost(e)
+        setVisible(true)
+      }
+      override def mouseClicked(e: MouseEvent): Unit = ()
+      override def mousePressed(e: MouseEvent): Unit = ()
+      override def mouseDragged(e: MouseEvent): Unit = ()
+      override def moveCaret(e: MouseEvent): Unit = ()
+    })
+    textPane.setCaretColor(Color.red)
 
     val kit = new HTMLEditorKit
     styles.foreach(kit.getStyleSheet.addRule)
     textPane.setEditorKit(kit)
 
-    def html: String = textPane.getText
-    def html_=(text: String) = {
-      textPane.setText(text)
+    def setHtml(html: String, caret: Option[Int]) = {
+      textPane.setText(html)
+      caret match {
+        case Some(offset) =>
+          textPane.getCaret.setVisible(true)
+          textPane.setCaretPosition(offset)
+        case None =>
+          textPane.getCaret.setVisible(false)
+      }
+    }
+
+    def clear(): Unit = {
+      setHtml("", None)
     }
   }
 
@@ -76,6 +95,7 @@ object SwingVirtualImplicits {
     def visible_=(value: Boolean): Unit = label.setVisible(value)
     def visible: Boolean = label.isVisible
     def requestFocus(): Unit = label.requestFocus()
+    def clear(): Unit = text = ""
   }
 
   implicit class RichProgressBar(progressBar: JProgressBar) {

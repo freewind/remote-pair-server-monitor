@@ -17,6 +17,9 @@ object models {
       val diffs = (events.takeWhile(_.id != eventId) ::: events.find(_.id == eventId).toList).collect({ case e: ContentChange => e }).flatMap(_.diffs)
       StringDiff.applyOperations(baseContent.content.text, diffs)
     }
+    def caretAtEvent(eventId: String): Option[Int] = {
+      (events.takeWhile(_.id != eventId) ::: events.find(_.id == eventId).toList).collect({ case e: CaretMove => e }).lastOption.map(_.offset)
+    }
   }
   case class BaseContent(version: Int, content: Content, sourceClient: ClientIdName)
 
