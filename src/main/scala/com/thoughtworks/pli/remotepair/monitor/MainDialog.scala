@@ -52,6 +52,7 @@ object MainDialog extends _MainDialog {
             case MonitorEvent(projectName, realEventMessage, _) => parseEvent(realEventMessage) match {
               case event: CreateDocumentConfirmation => handleCreateDocumentConfirmation(projectName, event)
               case event: ChangeContentConfirmation => handleChangeContentConfirmation(projectName, event)
+              case event: MoveCaretEvent => handleMoveCaretEvent(projectName, event)
               case other => println("### other: " + other.toMessage)
             }
             case _ => ???
@@ -63,6 +64,12 @@ object MainDialog extends _MainDialog {
 
 
   private var projects: Projects = Projects()
+
+  private def handleMoveCaretEvent(projectName: String, event: MoveCaretEvent): Unit = {
+    val caret = CaretMove(event.offset, event.sourceClient)
+    projects = modifyDocEvents(projects, projectName, event.path).using(_ ::: List(caret))
+    selectedDoc.find(_.path == event.path).foreach(renderDoc)
+  }
 
   private def handleChangeContentConfirmation(projectName: String, event: ChangeContentConfirmation): Unit = {
     val change = ContentChange(event.newVersion, event.diffs.toList, event.sourceClient)
