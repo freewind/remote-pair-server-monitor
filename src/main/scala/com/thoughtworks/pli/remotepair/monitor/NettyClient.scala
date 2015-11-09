@@ -3,7 +3,6 @@ package com.thoughtworks.pli.remotepair.monitor
 import java.nio.charset.Charset
 
 import com.thoughtworks.pli.intellij.remotepair.protocol.ParseEvent
-import com.thoughtworks.pli.remotepair.monitor.MainDialog.ServerAddress
 import io.netty.bootstrap.Bootstrap
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
@@ -12,6 +11,8 @@ import io.netty.channel._
 import io.netty.handler.codec.LineBasedFrameDecoder
 import io.netty.handler.codec.string.{StringEncoder, StringDecoder}
 import io.netty.util.concurrent.GenericFutureListener
+
+case class ServerAddress(ip: String, port: Int)
 
 class NettyClient(serverAddress: ServerAddress)(parseEvent: ParseEvent) {
 

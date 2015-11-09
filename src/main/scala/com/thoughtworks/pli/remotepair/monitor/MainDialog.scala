@@ -1,11 +1,8 @@
 package com.thoughtworks.pli.remotepair.monitor
 
-import javax.swing.{JList, DefaultListModel}
-import javax.swing.event.{ListSelectionEvent, ListSelectionListener, TreeSelectionEvent, TreeSelectionListener}
-import javax.swing.tree.{DefaultMutableTreeNode, DefaultTreeModel}
-
 import com.softwaremill.quicklens._
 import com.thoughtworks.pli.intellij.remotepair.protocol._
+import com.thoughtworks.pli.remotepair.monitor.MainDialog._
 import com.thoughtworks.pli.remotepair.monitor.SwingVirtualImplicits._
 import com.thoughtworks.pli.remotepair.monitor.models._
 import io.netty.channel.{ChannelFuture, ChannelHandlerAdapter, ChannelHandlerContext}
@@ -14,29 +11,28 @@ import io.netty.util.concurrent.GenericFutureListener
 import scala.util.Try
 import scalaz._
 
-object MainDialog extends _MainDialog {
-
-  trait DialogOperations {
-    def updateServerVersionLabel(version: String): Unit = {
-      serverVersionLabel.setText(version)
-    }
+object X {
+  def modifyDocEvents(projects: Projects, projectName: String, docPath: String) = {
+    modify(projects)(_.projects.eachWhere(_.name == projectName).docs.eachWhere(_.path == docPath).events)
   }
+  def modifyDocs(projects: Projects, projectName: String) = modify(projects)(_.projects.eachWhere(_.name == projectName).docs)
 
-  object DialogOperations extends DialogOperations
+}
 
-  implicit class RichJList[E](list: JList[E]) {
-    def itemCount = list.getModel.getSize
-    def isSelectedOnLastItem = itemCount == list.getSelectedIndex + 1
-    def selectLastItem() = list.setSelectedIndex(itemCount - 1)
-    def selectItem(item: E) = list.setSelectedValue(item, true)
-  }
+trait VirtualDialog {
+  val serverVersionLabel: RichLabel
+  val filePathLabel: RichLabel
+  val fileContextTextArea: RichTextArea
+  val serverAddressTextField: RichTextField
+  val docEventList: RichList[DocEventItemData]
+  val fileTree: RichTree
+  val connectButton: RichButton
+  val closeButton: RichButton
 
-  private var nettyClient: Option[NettyClient] = None
-
-  case class ServerAddress(ip: String, port: Int)
-
-  private val parseEvent = new ParseEvent
   private var channelFuture: Option[ChannelFuture] = None
+  private var nettyClient: Option[NettyClient] = None
+  private val parseEvent = new ParseEvent
+  private var projects: Projects = Projects()
 
   private def connectToServer(serverAddress: ServerAddress): Unit = {
     if (nettyClient.isEmpty) nettyClient = Some(new NettyClient(serverAddress)(parseEvent))
@@ -62,24 +58,18 @@ object MainDialog extends _MainDialog {
     }
   }
 
-
-  private var projects: Projects = Projects()
-
   private def handleMoveCaretEvent(projectName: String, event: MoveCaretEvent): Unit = {
     val caret = CaretMove(event.offset, event.sourceClient)
-    projects = modifyDocEvents(projects, projectName, event.path).using(_ ::: List(caret))
+    projects = X.modifyDocEvents(projects, projectName, event.path).using(_ ::: List(caret))
     selectedDoc.find(_.path == event.path).foreach(renderDoc)
   }
 
   private def handleChangeContentConfirmation(projectName: String, event: ChangeContentConfirmation): Unit = {
     val change = ContentChange(event.newVersion, event.diffs.toList, event.sourceClient)
-    projects = modifyDocEvents(projects, projectName, event.path).using(_ ::: List(change))
+    projects = X.modifyDocEvents(projects, projectName, event.path).using(_ ::: List(change))
     selectedDoc.find(_.path == event.path).foreach(renderDoc)
   }
 
-  def modifyDocEvents(projects: Projects, projectName: String, docPath: String) = {
-    modify(projects)(_.projects.eachWhere(_.name == projectName).docs.eachWhere(_.path == docPath).events)
-  }
 
   def selectedDoc: Option[Doc] = findSelectedDoc().map(_.doc)
 
@@ -87,21 +77,19 @@ object MainDialog extends _MainDialog {
     val previousItem = Option(docEventList.getSelectedValue)
     val followChanges = docEventList.isSelectedOnLastItem
 
-    createDocVersionList(doc)
+    createDocEventList(doc)
 
     if (followChanges) docEventList.selectLastItem() else previousItem.foreach(docEventList.selectItem)
   }
 
   private def handleCreateDocumentConfirmation(projectName: String, event: CreateDocumentConfirmation) = {
     val doc = Doc(event.path, BaseContent(event.version, event.content, event.sourceClient))
-    projects = modifyDocs(projects, projectName).using(docs => (doc :: docs).sortBy(_.path))
+    projects = X.modifyDocs(projects, projectName).using(docs => (doc :: docs).sortBy(_.path))
     createTree()
   }
 
-  private def modifyDocs(projects: Projects, projectName: String) = modify(projects)(_.projects.eachWhere(_.name == projectName).docs)
-
   private def handleServerVersionInfo(event: ServerVersionInfo): Unit = {
-    DialogOperations.updateServerVersionLabel(s"server version: ${event.version}")
+    serverVersionLabel.text = s"server version: ${event.version}"
   }
 
   private def handleServerStatusResponse(event: ServerStatusResponse): Unit = {
@@ -114,46 +102,49 @@ object MainDialog extends _MainDialog {
   }
 
   private def createTree(): Unit = {
-    val root = new DefaultMutableTreeNode("projects")
-    projects.projects.foreach(project => {
-      val pNode = new DefaultMutableTreeNode(project.name)
-      project.docs.foreach(doc => pNode.add(new DefaultMutableTreeNode(NodeData(project.name, doc.path))))
-      root.add(pNode)
+    val tree = Branch("projects", projects.projects.map { project =>
+      Option(project.docs).filterNot(_.isEmpty)
+        .map(docs => Branch(project.name, docs.map(doc => Leaf(NodeData(project.name, doc.path)))))
+        .getOrElse(Leaf(project.name))
     })
-    fileTree.setModel(new DefaultTreeModel(root))
-    fileTree.updateUI()
+    fileTree.setNodes(tree)
   }
 
-
-  fileTree.addTreeSelectionListener(new TreeSelectionListener {
-    override def valueChanged(e: TreeSelectionEvent): Unit = {
+  def init(): Unit = {
+    fileTree.onSelect {
       findSelectedDoc().foreach { case DocInProject(projectName, doc) =>
-        filePathLabel.setText(doc.path)
-        createDocVersionList(doc)
+        val docPath = doc.path
+        filePathLabel.text = docPath
+        createDocEventList(doc)
       }
     }
-  })
 
+    connectButton.onClick {
+      getInputServerAddress() match {
+        case Some(serverAddress) => connectToServer(serverAddress)
+        case _ => _serverAddressTextField.requestFocus()
+      }
+    }
+
+    closeButton.onClick {
+      channelFuture.foreach(_.channel().close().sync().addListener(new GenericFutureListener[ChannelFuture] {
+        override def operationComplete(future: ChannelFuture): Unit = clearAll()
+      }))
+    }
+  }
 
   case class DocInProject(projectName: String, doc: Doc)
 
   def findSelectedDoc(): Option[DocInProject] = {
-    Option(fileTree.getSelectionPath).map(_.getLastPathComponent.asInstanceOf[DefaultMutableTreeNode].getUserObject) match {
+    fileTree.getSelectedUserObject match {
       case Some(NodeData(projectName, docPath)) => projects.projects.find(_.name == projectName).flatMap(_.docs.find(_.path == docPath)).map(DocInProject(projectName, _))
       case _ => None
     }
   }
 
-  private def createDocVersionList(doc: Doc): Unit = {
-    val model = new DefaultListModel[DocEventItemData]()
-    model.addElement(DocEventItemData(-\/(doc.baseContent)))
-    doc.events.foreach(e => model.addElement(DocEventItemData(\/-(e))))
-    docEventList.setModel(model)
-    docEventList.addListSelectionListener(new ListSelectionListener {
-      override def valueChanged(e: ListSelectionEvent): Unit = {
-        Option(docEventList.getSelectedValue).foreach(updateDocContentToItem)
-      }
-    })
+  private def createDocEventList(doc: Doc): Unit = {
+    docEventList.items = DocEventItemData(-\/(doc.baseContent)) :: doc.events.map(e => DocEventItemData(\/-(e)))
+    docEventList.onSelect(() => Option(docEventList.getSelectedValue).foreach(updateDocContentToItem))
     docEventList.selectLastItem()
   }
 
@@ -163,7 +154,7 @@ object MainDialog extends _MainDialog {
         case -\/(baseContent) => baseContent.content.text
         case \/-(eventId) => doc.contentAtEvent(eventId)
       }
-      fileContentTextArea.setText(newContent)
+      fileContextTextArea.text = newContent
     }
   }
 
@@ -172,32 +163,33 @@ object MainDialog extends _MainDialog {
   }
 
   private def getInputServerAddress(): Option[ServerAddress] = {
-    serverAddressTextField.trimmedText.split(":") match {
+    serverAddressTextField.text.split(":") match {
       case Array(ip, port) => Try(ServerAddress(ip, port.toInt)).toOption
       case _ => None
     }
   }
 
-  connectButton.onClick {
-    getInputServerAddress() match {
-      case Some(serverAddress) => connectToServer(serverAddress)
-      case _ => serverAddressTextField.requestFocus()
-    }
-  }
-
-  closeButton.onClick {
-    channelFuture.foreach(_.channel().close().sync().addListener(new GenericFutureListener[ChannelFuture] {
-      override def operationComplete(future: ChannelFuture): Unit = clearAll()
-    }))
-  }
 
   private def clearAll(): Unit = {
-    fileTree.setModel(null)
-    println("#### docEventList.getModel: " + docEventList.getModel.getClass)
-    docEventList.setModel(new DefaultListModel[DocEventItemData]())
-    fileContentTextArea.setText("")
-    filePathLabel.setText("")
+    fileTree.clear()
+    docEventList.clearItems()
+    fileContextTextArea.text = ""
+    filePathLabel.text = ""
   }
+
+}
+
+object MainDialog extends _MainDialog with VirtualDialog {
+  val serverVersionLabel: RichLabel = new RichLabel(_serverVersionLabel)
+  val filePathLabel: RichLabel = new RichLabel(_filePathLabel)
+  val fileContextTextArea: RichTextArea = new RichTextArea(_fileContentTextArea)
+  val serverAddressTextField: RichTextField = new RichTextField(_serverAddressTextField)
+  val docEventList: RichList[DocEventItemData] = new RichList(_docEventList)
+  val fileTree: RichTree = new RichTree(_fileTree)
+  val connectButton: RichButton = new RichButton(_connectButton)
+  val closeButton: RichButton = new RichButton(_closeButton)
+
+  init()
 
   def main(args: Array[String]) {
     this.pack()

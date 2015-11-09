@@ -5,19 +5,19 @@ import java.awt.event.*;
 
 public class _MainDialog extends JDialog {
     private JPanel contentPane;
-    protected JTextField serverAddressTextField;
-    protected JButton connectButton;
-    protected JTree fileTree;
-    protected JTextArea fileContentTextArea;
-    protected JList<models.DocEventItemData> docEventList;
-    protected JLabel filePathLabel;
-    protected JLabel serverVersionLabel;
-    protected JButton closeButton;
+    protected JTextField _serverAddressTextField;
+    protected JButton _connectButton;
+    protected JTree _fileTree;
+    protected JTextArea _fileContentTextArea;
+    protected JList<models.DocEventItemData> _docEventList;
+    protected JLabel _filePathLabel;
+    protected JLabel _serverVersionLabel;
+    protected JButton _closeButton;
 
     public _MainDialog() {
         setContentPane(contentPane);
         setModal(true);
-        getRootPane().setDefaultButton(connectButton);
+        getRootPane().setDefaultButton(_connectButton);
 
 // call onCancel() when cross is clicked
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);

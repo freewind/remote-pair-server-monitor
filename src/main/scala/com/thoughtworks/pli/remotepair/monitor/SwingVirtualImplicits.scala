@@ -2,6 +2,8 @@ package com.thoughtworks.pli.remotepair.monitor
 
 import java.awt.event.{ActionEvent, ActionListener, WindowAdapter, WindowEvent}
 import javax.swing._
+import javax.swing.event.{TreeSelectionEvent, TreeSelectionListener, ListSelectionEvent, ListSelectionListener}
+import javax.swing.tree.{DefaultTreeModel, DefaultMutableTreeNode}
 
 object SwingVirtualImplicits {
 
@@ -15,7 +17,7 @@ object SwingVirtualImplicits {
     def requestFocus(): Unit = button.requestFocus()
   }
 
-  implicit class RichInputField(input: JTextField) {
+  implicit class RichTextField(input: JTextField) {
     def text: String = input.getText
     def trimmedText: String = text.trim
     def text_=(value: String): Unit = input.setText(value)
@@ -40,6 +42,11 @@ object SwingVirtualImplicits {
     def requestFocus(): Unit = dialog.requestFocus()
   }
 
+  class RichTextArea(textarea: JTextArea) {
+    def text: String = textarea.getText
+    def text_=(text: String) = textarea.setText(text)
+  }
+
   implicit class RichLabel(label: JLabel) {
     def text: String = label.getText
     def text_=(value: String): Unit = {
@@ -58,22 +65,57 @@ object SwingVirtualImplicits {
     def requestFocus(): Unit = progressBar.requestFocus()
   }
 
-  implicit class RichList(list: JList[String]) {
-    def items: Seq[String] = {
+  class RichList[E](list: JList[E]) {
+    def items: Seq[E] = {
       val model = list.getModel
       (0 until model.getSize).map(model.getElementAt).toList
     }
-    def items_=(values: Seq[String]): Unit = {
-      val listModel = new DefaultListModel[String]()
+    def items_=(values: Seq[E]): Unit = {
+      val listModel = new DefaultListModel[E]()
       values.foreach(listModel.addElement)
       list.setModel(listModel)
     }
-    def selectedItems: Seq[String] = list.getSelectedValues.map(_.toString)
-    def removeItems(values: Seq[String]): Unit = {
-      val listModel = list.getModel.asInstanceOf[DefaultListModel[String]]
+    def removeItems(values: Seq[E]): Unit = {
+      val listModel = list.getModel.asInstanceOf[DefaultListModel[E]]
       values.foreach(listModel.removeElement)
     }
     def requestFocus(): Unit = list.requestFocus()
+    def getSelectedValue: E = list.getSelectedValue
+    def itemCount = list.getModel.getSize
+    def isSelectedOnLastItem = itemCount == list.getSelectedIndex + 1
+    def selectLastItem() = list.setSelectedIndex(itemCount - 1)
+    def selectItem(item: E) = list.setSelectedValue(item, true)
+    def clearItems(): Unit = list.setModel(new DefaultListModel[E]())
+    def onSelect(f: () => Unit): Unit = list.addListSelectionListener(new ListSelectionListener {
+      override def valueChanged(e: ListSelectionEvent): Unit = f()
+    })
+  }
+
+  class RichTree(tree: JTree) {
+    def getSelectedUserObject: Option[AnyRef] = {
+      Option(tree.getSelectionPath).map(_.getLastPathComponent.asInstanceOf[DefaultMutableTreeNode].getUserObject)
+    }
+    def clear(): Unit = tree.setModel(null)
+    def onSelect(f: => Any) = {
+      tree.addTreeSelectionListener(new TreeSelectionListener {
+        override def valueChanged(e: TreeSelectionEvent): Unit = f
+      })
+    }
+    def setNodes(treeRoot: TreeNode): Unit = {
+      def iterate(thisNode: TreeNode): DefaultMutableTreeNode = thisNode match {
+        case Branch(data, children) => {
+          val treeNode = new DefaultMutableTreeNode(data)
+          children.foreach(child => treeNode.add(iterate(child)))
+          treeNode
+        }
+        case Leaf(data) => new DefaultMutableTreeNode(data)
+      }
+      tree.setModel(new DefaultTreeModel(iterate(treeRoot)))
+    }
   }
 
 }
+
+sealed trait TreeNode
+case class Branch(data: AnyRef, children: Seq[TreeNode]) extends TreeNode
+case class Leaf(data: AnyRef) extends TreeNode
