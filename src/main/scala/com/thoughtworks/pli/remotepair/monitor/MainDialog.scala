@@ -83,7 +83,7 @@ object MainDialog extends _MainDialog {
   }
 
   private def handleCreateDocumentConfirmation(projectName: String, event: CreateDocumentConfirmation) = {
-    val doc = Doc(event.path, event.version, event.content, event.sourceClient)
+    val doc = Doc(event.path, BaseContent(event.version, event.content, event.sourceClient))
     projects = modifyDocs(projects, projectName).using(docs => (doc :: docs).sortBy(_.path))
     createTree()
   }
@@ -136,7 +136,7 @@ object MainDialog extends _MainDialog {
 
   private def createDocVersionList(doc: Doc): Unit = {
     val model = new DefaultListModel[DocEventItemData]()
-    model.addElement(DocEventItemData(doc.baseVersion, doc.baseSourceClient))
+    model.addElement(DocEventItemData(doc.baseContent.version, doc.baseContent.sourceClient))
     doc.contentChanges.foreach(change => model.addElement(DocEventItemData(change.version, change.sourceClient)))
     docEventList.setModel(model)
     docEventList.addListSelectionListener(new ListSelectionListener {
