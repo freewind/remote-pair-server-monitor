@@ -8,11 +8,11 @@ public class _MainDialog extends JDialog {
     protected JTextField _serverAddressTextField;
     protected JButton _connectButton;
     protected JTree _fileTree;
-    protected JTextArea _fileContentTextArea;
     protected JList<models.DocEventItemData> _docEventList;
     protected JLabel _filePathLabel;
     protected JLabel _serverVersionLabel;
     protected JButton _closeButton;
+    protected JTextPane _fileContentTextPane;
 
     public _MainDialog() {
         setContentPane(contentPane);

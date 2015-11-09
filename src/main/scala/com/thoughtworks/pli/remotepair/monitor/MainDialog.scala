@@ -22,7 +22,7 @@ object X {
 trait VirtualDialog {
   val serverVersionLabel: RichLabel
   val filePathLabel: RichLabel
-  val fileContextTextArea: RichTextArea
+  val fileContentHtmlPane: RichHtmlPane
   val serverAddressTextField: RichTextField
   val docEventList: RichList[DocEventItemData]
   val fileTree: RichTree
@@ -154,7 +154,7 @@ trait VirtualDialog {
         case -\/(baseContent) => baseContent.content.text
         case \/-(eventId) => doc.contentAtEvent(eventId)
       }
-      fileContextTextArea.text = newContent
+      fileContentHtmlPane.html = newContent
     }
   }
 
@@ -173,7 +173,7 @@ trait VirtualDialog {
   private def clearAll(): Unit = {
     fileTree.clear()
     docEventList.clearItems()
-    fileContextTextArea.text = ""
+    fileContentHtmlPane.html = ""
     filePathLabel.text = ""
   }
 
@@ -182,7 +182,7 @@ trait VirtualDialog {
 object MainDialog extends _MainDialog with VirtualDialog {
   val serverVersionLabel: RichLabel = new RichLabel(_serverVersionLabel)
   val filePathLabel: RichLabel = new RichLabel(_filePathLabel)
-  val fileContextTextArea: RichTextArea = new RichTextArea(_fileContentTextArea)
+  val fileContentHtmlPane: RichHtmlPane = new RichHtmlPane(_fileContentTextPane)
   val serverAddressTextField: RichTextField = new RichTextField(_serverAddressTextField)
   val docEventList: RichList[DocEventItemData] = new RichList(_docEventList)
   val fileTree: RichTree = new RichTree(_fileTree)

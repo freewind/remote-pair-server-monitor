@@ -1,9 +1,14 @@
 package com.thoughtworks.pli.remotepair.monitor
 
+import java.awt.Color
 import java.awt.event.{ActionEvent, ActionListener, WindowAdapter, WindowEvent}
 import javax.swing._
 import javax.swing.event.{TreeSelectionEvent, TreeSelectionListener, ListSelectionEvent, ListSelectionListener}
+import javax.swing.text.Document
+import javax.swing.text.html.{StyleSheet, HTMLEditorKit}
 import javax.swing.tree.{DefaultTreeModel, DefaultMutableTreeNode}
+
+import com.thoughtworks.pli.remotepair.monitor.MainDialog._
 
 object SwingVirtualImplicits {
 
@@ -42,9 +47,25 @@ object SwingVirtualImplicits {
     def requestFocus(): Unit = dialog.requestFocus()
   }
 
-  class RichTextArea(textarea: JTextArea) {
-    def text: String = textarea.getText
-    def text_=(text: String) = textarea.setText(text)
+  class RichHtmlPane(textPane: JTextPane) {
+    private val styles = Seq(
+      "pre { font : 10px monaco; color : black; background-color : #fafafa; }",
+      ".caret { color: red; }",
+      ".add { color: green; }"
+    )
+
+    textPane.setContentType("text/html")
+    textPane.setEnabled(true)
+    textPane.setEditable(false)
+
+    val kit = new HTMLEditorKit
+    styles.foreach(kit.getStyleSheet.addRule)
+    textPane.setEditorKit(kit)
+
+    def html: String = textPane.getText
+    def html_=(text: String) = {
+      textPane.setText(text)
+    }
   }
 
   implicit class RichLabel(label: JLabel) {
