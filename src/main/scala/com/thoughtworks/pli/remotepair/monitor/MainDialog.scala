@@ -1,6 +1,6 @@
 package com.thoughtworks.pli.remotepair.monitor
 
-import javax.swing.DefaultListModel
+import javax.swing.{JList, DefaultListModel}
 import javax.swing.event.{ListSelectionEvent, ListSelectionListener, TreeSelectionEvent, TreeSelectionListener}
 import javax.swing.tree.{DefaultMutableTreeNode, DefaultTreeModel}
 
@@ -14,6 +14,19 @@ import io.netty.util.concurrent.GenericFutureListener
 import scala.util.Try
 
 object MainDialog extends _MainDialog {
+
+  trait DialogOperations {
+    def updateServerVersionLabel(version: String): Unit = {
+      serverVersionLabel.setText(version)
+    }
+  }
+
+  object DialogOperations extends DialogOperations
+
+  implicit class RichJList[E](list: JList[E]) {
+    def itemCount = list.getModel.getSize
+    def isSelectedOnLastItem = itemCount == list.getSelectedIndex + 1
+  }
 
   private var nettyClient: Option[NettyClient] = None
 
@@ -50,35 +63,35 @@ object MainDialog extends _MainDialog {
 
   private def handleChangeContentConfirmation(projectName: String, event: ChangeContentConfirmation): Unit = {
     val change = ContentChange(event.newVersion, event.diffs.toList, event.sourceClient)
-    projects = projects.modify(_.projects.eachWhere(_.name == projectName).docs.eachWhere(_.path == event.path).events)
-      .using(_ ::: List(change))
-    updateDisplayedSelectedDoc()
+    projects = modifyDocEvents(projects, projectName, event.path).using(_ ::: List(change))
+    selectedDoc.find(_.path == event.path).foreach(renderDoc)
   }
 
-  def updateDisplayedSelectedDoc(): Unit = {
-    findSelectedDoc().foreach { case (projectName, doc) =>
-      if (doc.events.size > docEventList.getModel.getSize) {
-        val previousVersion = Option(docEventList.getSelectedValue).map(_.version)
-        val followChanges = docEventList.getSelectedIndex == docEventList.getModel.getSize - 1
-        createDocVersionList(doc)
-        if (followChanges) {
-          selectDocVersion(doc.latestVersion)
-        } else {
-          previousVersion.foreach(selectDocVersion)
-        }
-      }
-    }
+  def modifyDocEvents(projects: Projects, projectName: String, docPath: String) = {
+    modify(projects)(_.projects.eachWhere(_.name == projectName).docs.eachWhere(_.path == docPath).events)
+  }
+
+  def selectedDoc: Option[Doc] = findSelectedDoc().map(_.doc)
+
+  def renderDoc(doc: Doc): Unit = {
+    val previousVersion = Option(docEventList.getSelectedValue).map(_.version)
+    val followChanges = docEventList.isSelectedOnLastItem
+
+    createDocVersionList(doc)
+
+    if (followChanges) selectDocVersion(doc.latestVersion) else previousVersion.foreach(selectDocVersion)
   }
 
   private def handleCreateDocumentConfirmation(projectName: String, event: CreateDocumentConfirmation) = {
     val doc = Doc(event.path, event.version, event.content, event.sourceClient)
-    projects = projects.modify(_.projects.eachWhere(_.name == projectName).docs)
-      .using(docs => (doc :: docs).sortBy(_.path))
+    projects = modifyDocs(projects, projectName).using(docs => (doc :: docs).sortBy(_.path))
     createTree()
   }
 
+  private def modifyDocs(projects: Projects, projectName: String) = modify(projects)(_.projects.eachWhere(_.name == projectName).docs)
+
   private def handleServerVersionInfo(event: ServerVersionInfo): Unit = {
-    serverVersionLabel.setText("server version: " + event.version)
+    DialogOperations.updateServerVersionLabel(s"server version: ${event.version}")
   }
 
   private def handleServerStatusResponse(event: ServerStatusResponse): Unit = {
@@ -104,24 +117,27 @@ object MainDialog extends _MainDialog {
 
   fileTree.addTreeSelectionListener(new TreeSelectionListener {
     override def valueChanged(e: TreeSelectionEvent): Unit = {
-      findSelectedDoc().foreach { case (projectName, doc) =>
+      findSelectedDoc().foreach { case DocInProject(projectName, doc) =>
         filePathLabel.setText(doc.path)
         createDocVersionList(doc)
       }
     }
   })
 
-  def findSelectedDoc(): Option[(String, Doc)] = {
+
+  case class DocInProject(projectName: String, doc: Doc)
+
+  def findSelectedDoc(): Option[DocInProject] = {
     Option(fileTree.getSelectionPath).map(_.getLastPathComponent.asInstanceOf[DefaultMutableTreeNode].getUserObject) match {
-      case Some(NodeData(projectName, docPath)) => projects.projects.find(_.name == projectName).flatMap(_.docs.find(_.path == docPath)).map((projectName, _))
+      case Some(NodeData(projectName, docPath)) => projects.projects.find(_.name == projectName).flatMap(_.docs.find(_.path == docPath)).map(DocInProject(projectName, _))
       case _ => None
     }
   }
 
   private def createDocVersionList(doc: Doc): Unit = {
-    val model = new DefaultListModel[VersionItemData]()
-    model.addElement(VersionItemData(doc.baseVersion, doc.baseSourceClient))
-    doc.contentChanges.foreach(change => model.addElement(VersionItemData(change.version, change.sourceClient)))
+    val model = new DefaultListModel[DocEventItemData]()
+    model.addElement(DocEventItemData(doc.baseVersion, doc.baseSourceClient))
+    doc.contentChanges.foreach(change => model.addElement(DocEventItemData(change.version, change.sourceClient)))
     docEventList.setModel(model)
     docEventList.addListSelectionListener(new ListSelectionListener {
       override def valueChanged(e: ListSelectionEvent): Unit = {
@@ -137,8 +153,8 @@ object MainDialog extends _MainDialog {
       .foreach(docEventList.setSelectedIndex)
   }
 
-  private def updateDocContentToVersion(version: VersionItemData): Unit = {
-    findSelectedDoc().foreach { case (_, doc) =>
+  private def updateDocContentToVersion(version: DocEventItemData): Unit = {
+    findSelectedDoc().foreach { case DocInProject(_, doc) =>
       fileContentTextArea.setText(doc.contentOfVersion(version.version))
     }
   }
@@ -170,7 +186,7 @@ object MainDialog extends _MainDialog {
   private def clearAll(): Unit = {
     fileTree.setModel(null)
     println("#### docEventList.getModel: " + docEventList.getModel.getClass)
-    docEventList.setModel(new DefaultListModel[VersionItemData]())
+    docEventList.setModel(new DefaultListModel[DocEventItemData]())
     fileContentTextArea.setText("")
     filePathLabel.setText("")
   }

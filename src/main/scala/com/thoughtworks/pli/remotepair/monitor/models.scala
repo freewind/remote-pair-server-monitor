@@ -16,7 +16,7 @@ object models {
   trait DocEvent
   case class ContentChange(version: Int, diffs: List[StringOperation], sourceClient: ClientIdName) extends DocEvent
 
-  case class VersionItemData(version: Int, sourceClient: ClientIdName) {
+  case class DocEventItemData(version: Int, sourceClient: ClientIdName) {
     override def toString: String = sourceClient.name + ": " + version.toString
   }
 
