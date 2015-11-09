@@ -12,6 +12,7 @@ import io.netty.channel.{ChannelFuture, ChannelHandlerAdapter, ChannelHandlerCon
 import io.netty.util.concurrent.GenericFutureListener
 
 import scala.util.Try
+import scalaz._
 
 object MainDialog extends _MainDialog {
 
@@ -26,6 +27,8 @@ object MainDialog extends _MainDialog {
   implicit class RichJList[E](list: JList[E]) {
     def itemCount = list.getModel.getSize
     def isSelectedOnLastItem = itemCount == list.getSelectedIndex + 1
+    def selectLastItem() = list.setSelectedIndex(itemCount - 1)
+    def selectItem(item: E) = list.setSelectedValue(item, true)
   }
 
   private var nettyClient: Option[NettyClient] = None
@@ -74,12 +77,12 @@ object MainDialog extends _MainDialog {
   def selectedDoc: Option[Doc] = findSelectedDoc().map(_.doc)
 
   def renderDoc(doc: Doc): Unit = {
-    val previousVersion = Option(docEventList.getSelectedValue).map(_.version)
+    val previousItem = Option(docEventList.getSelectedValue)
     val followChanges = docEventList.isSelectedOnLastItem
 
     createDocVersionList(doc)
 
-    if (followChanges) selectDocVersion(doc.latestVersion) else previousVersion.foreach(selectDocVersion)
+    if (followChanges) docEventList.selectLastItem() else previousItem.foreach(docEventList.selectItem)
   }
 
   private def handleCreateDocumentConfirmation(projectName: String, event: CreateDocumentConfirmation) = {
@@ -136,26 +139,24 @@ object MainDialog extends _MainDialog {
 
   private def createDocVersionList(doc: Doc): Unit = {
     val model = new DefaultListModel[DocEventItemData]()
-    model.addElement(DocEventItemData(doc.baseContent.version, doc.baseContent.sourceClient))
-    doc.contentChanges.foreach(change => model.addElement(DocEventItemData(change.version, change.sourceClient)))
+    model.addElement(DocEventItemData(-\/(doc.baseContent)))
+    doc.events.foreach(e => model.addElement(DocEventItemData(\/-(e))))
     docEventList.setModel(model)
     docEventList.addListSelectionListener(new ListSelectionListener {
       override def valueChanged(e: ListSelectionEvent): Unit = {
-        Option(docEventList.getSelectedValue).foreach(updateDocContentToVersion)
+        Option(docEventList.getSelectedValue).foreach(updateDocContentToItem)
       }
     })
-    selectDocVersion(doc.latestVersion)
+    docEventList.selectLastItem()
   }
 
-  private def selectDocVersion(version: Int): Unit = {
-    (0 until docEventList.getModel.getSize)
-      .find(index => docEventList.getModel.getElementAt(index).version == version)
-      .foreach(docEventList.setSelectedIndex)
-  }
-
-  private def updateDocContentToVersion(version: DocEventItemData): Unit = {
+  private def updateDocContentToItem(itemData: DocEventItemData): Unit = {
     findSelectedDoc().foreach { case DocInProject(_, doc) =>
-      fileContentTextArea.setText(doc.contentOfVersion(version.version))
+      val newContent: String = itemData.data.map(_.id) match {
+        case -\/(baseContent) => baseContent.content.text
+        case \/-(eventId) => doc.contentAtEvent(eventId)
+      }
+      fileContentTextArea.setText(newContent)
     }
   }
 

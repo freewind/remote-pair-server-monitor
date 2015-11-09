@@ -2,7 +2,9 @@ package com.thoughtworks.pli.remotepair.monitor
 
 import com.thoughtworks.pli.intellij.remotepair.protocol.Content
 import com.thoughtworks.pli.intellij.remotepair.server.ClientIdName
-import com.thoughtworks.pli.intellij.remotepair.utils.{StringDiff, StringOperation}
+import com.thoughtworks.pli.intellij.remotepair.utils.{NewUuid, StringDiff, StringOperation}
+
+import scalaz._
 
 object models {
 
@@ -11,15 +13,26 @@ object models {
   case class Doc(path: String, baseContent: BaseContent, events: List[DocEvent] = Nil) {
     def contentChanges: List[ContentChange] = events.collect({ case e: ContentChange => e })
     def latestVersion: Int = contentChanges.lastOption.map(_.version).getOrElse(baseContent.version)
-    def contentOfVersion(version: Int): String = StringDiff.applyOperations(baseContent.content.text, contentChanges.filter(_.version <= version).flatMap(_.diffs))
+    def contentAtEvent(eventId: String): String = {
+      val diffs = (events.takeWhile(_.id != eventId) ::: events.find(_.id == eventId).toList).collect({ case e: ContentChange => e }).flatMap(_.diffs)
+      StringDiff.applyOperations(baseContent.content.text, diffs)
+    }
   }
   case class BaseContent(version: Int, content: Content, sourceClient: ClientIdName)
 
-  trait DocEvent
-  case class ContentChange(version: Int, diffs: List[StringOperation], sourceClient: ClientIdName) extends DocEvent
+  sealed trait DocEvent {
+    val id: String
+  }
 
-  case class DocEventItemData(version: Int, sourceClient: ClientIdName) {
-    override def toString: String = sourceClient.name + ": " + version.toString
+  case class ContentChange(version: Int, diffs: List[StringOperation], sourceClient: ClientIdName, id: String = new NewUuid().apply()) extends DocEvent
+  case class CaretMove(offset: Int, sourceClient: ClientIdName, id: String = new NewUuid().apply()) extends DocEvent
+
+  case class DocEventItemData(data: BaseContent \/ DocEvent) {
+    override def toString: String = data match {
+      case -\/(BaseContent(version, Content(_, charset), ClientIdName(_, name))) => s"[$name] version: $version, charset: $charset"
+      case \/-(ContentChange(version, _, ClientIdName(_, name), _)) => s"[$name] version: $version"
+      case \/-(CaretMove(offset, ClientIdName(_, name), _)) => s"[$name] caret: $offset"
+    }
   }
 
 }
