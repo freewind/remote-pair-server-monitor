@@ -102,10 +102,10 @@ trait VirtualDialog {
   }
 
   private def createTree(): Unit = {
-    val tree = Branch("projects", projects.projects.map { project =>
+    val tree = TreeNode("projects", projects.projects.map { project =>
       Option(project.docs).filterNot(_.isEmpty)
-        .map(docs => Branch(project.name, docs.map(doc => Leaf(NodeData(project.name, doc.path)))))
-        .getOrElse(Leaf(project.name))
+        .map(docs => TreeNode(project.name, docs.map(doc => TreeNode(NodeData(project.name, doc.path)))))
+        .getOrElse(TreeNode(project.name))
     })
     fileTree.setNodes(tree)
   }

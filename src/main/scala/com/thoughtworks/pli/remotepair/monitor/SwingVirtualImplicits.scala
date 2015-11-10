@@ -132,12 +132,11 @@ object SwingVirtualImplicits {
     }
     def setNodes(treeRoot: TreeNode): Unit = {
       def iterate(thisNode: TreeNode): DefaultMutableTreeNode = thisNode match {
-        case Branch(data, children) => {
+        case TreeNode(data, children) => {
           val treeNode = new DefaultMutableTreeNode(data)
           children.foreach(child => treeNode.add(iterate(child)))
           treeNode
         }
-        case Leaf(data) => new DefaultMutableTreeNode(data)
       }
       tree.setModel(new DefaultTreeModel(iterate(treeRoot)))
     }
@@ -145,6 +144,4 @@ object SwingVirtualImplicits {
 
 }
 
-sealed trait TreeNode
-case class Branch(data: AnyRef, children: Seq[TreeNode]) extends TreeNode
-case class Leaf(data: AnyRef) extends TreeNode
+case class TreeNode(data: AnyRef, children: Seq[TreeNode] = Nil)
