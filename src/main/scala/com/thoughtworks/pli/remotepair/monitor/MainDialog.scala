@@ -11,12 +11,11 @@ import io.netty.util.concurrent.GenericFutureListener
 import scala.util.Try
 import scalaz._
 
-object X {
+object Lens {
   def modifyDocEvents(projects: Projects, projectName: String, docPath: String) = {
     modify(projects)(_.projects.eachWhere(_.name == projectName).docs.eachWhere(_.path == docPath).events)
   }
   def modifyDocs(projects: Projects, projectName: String) = modify(projects)(_.projects.eachWhere(_.name == projectName).docs)
-
 }
 
 trait VirtualDialog {
@@ -60,13 +59,13 @@ trait VirtualDialog {
 
   private def handleMoveCaretEvent(projectName: String, event: MoveCaretEvent): Unit = {
     val caret = CaretMove(event.offset, event.sourceClient)
-    projects = X.modifyDocEvents(projects, projectName, event.path).using(_ ::: List(caret))
+    projects = Lens.modifyDocEvents(projects, projectName, event.path).using(_ ::: List(caret))
     selectedDoc.find(_.path == event.path).foreach(renderDoc)
   }
 
   private def handleChangeContentConfirmation(projectName: String, event: ChangeContentConfirmation): Unit = {
     val change = ContentChange(event.newVersion, event.diffs.toList, event.sourceClient)
-    projects = X.modifyDocEvents(projects, projectName, event.path).using(_ ::: List(change))
+    projects = Lens.modifyDocEvents(projects, projectName, event.path).using(_ ::: List(change))
     selectedDoc.find(_.path == event.path).foreach(renderDoc)
   }
 
@@ -84,7 +83,7 @@ trait VirtualDialog {
 
   private def handleCreateDocumentConfirmation(projectName: String, event: CreateDocumentConfirmation) = {
     val doc = Doc(event.path, BaseContent(event.version, event.content, event.sourceClient))
-    projects = X.modifyDocs(projects, projectName).using(docs => (doc :: docs).sortBy(_.path))
+    projects = Lens.modifyDocs(projects, projectName).using(docs => (doc :: docs).sortBy(_.path))
     createTree()
   }
 
