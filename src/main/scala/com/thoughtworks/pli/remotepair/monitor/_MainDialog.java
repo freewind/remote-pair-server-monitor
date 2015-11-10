@@ -12,7 +12,7 @@ public class _MainDialog extends JDialog {
     protected JLabel _filePathLabel;
     protected JLabel _serverVersionLabel;
     protected JButton _closeButton;
-    protected JTextPane _fileContentTextPane;
+    protected JTextArea _fileContentTextArea;
 
     public _MainDialog() {
         setContentPane(contentPane);

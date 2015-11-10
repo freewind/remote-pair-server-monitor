@@ -5,12 +5,11 @@ import java.awt.event._
 import javax.swing._
 import javax.swing.event.{ListSelectionEvent, ListSelectionListener, TreeSelectionEvent, TreeSelectionListener}
 import javax.swing.text.DefaultCaret
-import javax.swing.text.html.HTMLEditorKit
 import javax.swing.tree.{DefaultMutableTreeNode, DefaultTreeModel}
 
 object SwingVirtualImplicits {
 
-  implicit class RichButton(button: JButton) {
+  class RichButton(button: JButton) {
     def text_=(value: String): Unit = button.setText(value)
     def onClick(f: => Unit): Unit = button.addActionListener(new ActionListener {
       def actionPerformed(actionEvent: ActionEvent): Unit = f
@@ -20,19 +19,19 @@ object SwingVirtualImplicits {
     def requestFocus(): Unit = button.requestFocus()
   }
 
-  implicit class RichTextField(input: JTextField) {
+  class RichTextField(input: JTextField) {
     def text: String = input.getText
     def trimmedText: String = text.trim
     def text_=(value: String): Unit = input.setText(value)
     def requestFocus(): Unit = input.requestFocus()
   }
 
-  implicit class RichCheckBox(checkbox: JCheckBox) {
+  class RichCheckBox(checkbox: JCheckBox) {
     def isSelected: Boolean = checkbox.isSelected
     def requestFocus(): Unit = checkbox.requestFocus()
   }
 
-  implicit class RichDialog(dialog: JDialog) {
+  class RichDialog(dialog: JDialog) {
     def dispose(): Unit = dialog.dispose()
     def onClose(f: => Unit): Unit = dialog.addWindowListener(new WindowAdapter {
       override def windowClosed(windowEvent: WindowEvent): Unit = f
@@ -45,17 +44,10 @@ object SwingVirtualImplicits {
     def requestFocus(): Unit = dialog.requestFocus()
   }
 
-  class RichHtmlPane(textPane: JTextPane) {
-    private val styles = Seq(
-      "pre { font : 10px monaco; color : black; background-color : #fafafa; }",
-      ".caret { color: red; }",
-      ".add { color: green; }"
-    )
-
-    textPane.setContentType("text/html")
-    textPane.setEnabled(true)
-    textPane.setEditable(true)
-    textPane.setCaret(new DefaultCaret {
+  class RichTextArea(textArea: JTextArea) {
+    textArea.setEnabled(true)
+    textArea.setEditable(true)
+    textArea.setCaret(new DefaultCaret {
       override def focusLost(e: FocusEvent): Unit = {
         super.focusLost(e)
         setVisible(true)
@@ -65,29 +57,25 @@ object SwingVirtualImplicits {
       override def mouseDragged(e: MouseEvent): Unit = ()
       override def moveCaret(e: MouseEvent): Unit = ()
     })
-    textPane.setCaretColor(Color.red)
+    textArea.setCaretColor(Color.red)
 
-    val kit = new HTMLEditorKit
-    styles.foreach(kit.getStyleSheet.addRule)
-    textPane.setEditorKit(kit)
-
-    def setHtml(html: String, caret: Option[Int]) = {
-      textPane.setText(html)
+    def setText(text: String, caret: Option[Int]) = {
+      textArea.setText(text)
       caret match {
         case Some(offset) =>
-          textPane.getCaret.setVisible(true)
-          textPane.setCaretPosition(offset)
+          textArea.getCaret.setVisible(true)
+          textArea.setCaretPosition(offset)
         case None =>
-          textPane.getCaret.setVisible(false)
+          textArea.getCaret.setVisible(false)
       }
     }
 
     def clear(): Unit = {
-      setHtml("", None)
+      setText("", None)
     }
   }
 
-  implicit class RichLabel(label: JLabel) {
+  class RichLabel(label: JLabel) {
     def text: String = label.getText
     def text_=(value: String): Unit = {
       label.setText(value)
@@ -98,7 +86,7 @@ object SwingVirtualImplicits {
     def clear(): Unit = text = ""
   }
 
-  implicit class RichProgressBar(progressBar: JProgressBar) {
+  class RichProgressBar(progressBar: JProgressBar) {
     def max: Int = progressBar.getMaximum
     def max_=(value: Int): Unit = progressBar.setMaximum(value)
     def value_=(value: Int): Unit = progressBar.setValue(value)
