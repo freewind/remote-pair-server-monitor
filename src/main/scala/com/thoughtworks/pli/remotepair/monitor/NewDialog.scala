@@ -92,9 +92,19 @@ object NewDialog extends SimpleSwingApplication {
       }
 
       lazy val monitorPanel = new BoxPanel(Horizontal) {
-        selectedProjects.foreach { projects =>
+        var simpleMonitors = Seq.empty[ProjectSimpleComponent]
+
+        selectedProjects map { projects =>
+          val existingProjects = simpleMonitors.map(_.project)
+          (projects.filterNot(existingProjects.contains), existingProjects.filterNot(projects.contains))
+        } map { case (newSelected, removed) =>
+          newSelected.map(new ProjectSimpleComponent(_)) ++ simpleMonitors.filterNot(m => removed.contains(m.project))
+        } foreach { newMonitors =>
+          simpleMonitors = newMonitors
+
           contents.clear()
-          contents ++= projects.map(p => new ProjectSimpleComponent(p))
+          contents ++= newMonitors
+
           frame.pack()
           frame.repaint()
         }

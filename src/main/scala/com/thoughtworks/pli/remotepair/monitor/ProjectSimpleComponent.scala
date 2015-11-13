@@ -2,8 +2,12 @@ package com.thoughtworks.pli.remotepair.monitor
 
 import com.thoughtworks.pli.remotepair.monitor.models.Project
 
-import scala.swing.BorderPanel
+import scala.swing.{Button, BorderPanel}
 
-class ProjectSimpleComponent(project:Project) extends BorderPanel {
+class ProjectSimpleComponent(val project: Project) extends BorderPanel {
+
+  import BorderPanel.Position._
+
+  layout(new Button(project.name)) = Center
 
 }
