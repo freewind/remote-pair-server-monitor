@@ -44,7 +44,7 @@ object SwingVirtualImplicits {
     def requestFocus(): Unit = dialog.requestFocus()
   }
 
-  class RichTextArea(textArea: JTextArea) {
+  class RichTextArea(textArea: JTextArea)  {
     textArea.setEnabled(true)
     textArea.setEditable(true)
     textArea.setCaret(new DefaultCaret {

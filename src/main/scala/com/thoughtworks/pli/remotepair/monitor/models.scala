@@ -21,20 +21,21 @@ object models {
       (events.takeWhile(_.id != eventId) ::: events.find(_.id == eventId).toList).collect({ case e: CaretMove => e }).lastOption.map(_.offset)
     }
   }
-  case class BaseContent(version: Int, content: Content, sourceClient: ClientIdName)
+  case class BaseContent(version: Int, content: Content, sourceClient: ClientIdName, timestamp: Long)
 
   sealed trait DocEvent {
     val id: String
+    val timestamp: Long
   }
 
-  case class ContentChange(version: Int, diffs: List[StringOperation], sourceClient: ClientIdName, id: String = new NewUuid().apply()) extends DocEvent
-  case class CaretMove(offset: Int, sourceClient: ClientIdName, id: String = new NewUuid().apply()) extends DocEvent
+  case class ContentChange(version: Int, diffs: List[StringOperation], sourceClient: ClientIdName, timestamp: Long, id: String = new NewUuid().apply()) extends DocEvent
+  case class CaretMove(offset: Int, sourceClient: ClientIdName, timestamp: Long, id: String = new NewUuid().apply()) extends DocEvent
 
   case class DocEventItemData(data: BaseContent \/ DocEvent) {
     override def toString: String = data match {
-      case -\/(BaseContent(version, Content(_, charset), ClientIdName(_, name))) => s"[$name] version: $version, charset: $charset"
-      case \/-(ContentChange(version, _, ClientIdName(_, name), _)) => s"[$name] version: $version"
-      case \/-(CaretMove(offset, ClientIdName(_, name), _)) => s"[$name] caret: $offset"
+      case -\/(BaseContent(version, Content(_, charset), ClientIdName(_, name), _)) => s"[$name] version: $version, charset: $charset"
+      case \/-(ContentChange(version, _, ClientIdName(_, name), _, _)) => s"[$name] version: $version"
+      case \/-(CaretMove(offset, ClientIdName(_, name), _, _)) => s"[$name] caret: $offset"
     }
   }
 

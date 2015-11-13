@@ -11,6 +11,10 @@ ivyScala := ivyScala.value map {
 }
 
 libraryDependencies in ThisBuild ++= Seq(
+  "org.scala-lang.modules" %% "scala-swing" % "1.0.1",
+  "io.reactivex" %% "rxscala" % "0.25.0",
+  "io.reactivex" % "rxswing" % "0.21.0",
+  "com.github.benhutchison" %% "scalaswingcontrib" % "1.5",
   "com.thoughtworks" %% "remote-pair-server" % "0.9.0",
   "commons-lang" % "commons-lang" % "2.6",
   "commons-io" % "commons-io" % "2.0.1",

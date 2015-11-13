@@ -12,7 +12,15 @@ import io.netty.handler.codec.LineBasedFrameDecoder
 import io.netty.handler.codec.string.{StringEncoder, StringDecoder}
 import io.netty.util.concurrent.GenericFutureListener
 
+import scala.util.Try
+
 case class ServerAddress(ip: String, port: Int)
+object ServerAddress {
+  def parse(text: String): Option[ServerAddress] = text.trim.split(":") match {
+    case Array(_ip, _port) => Try(ServerAddress(_ip, _port.toInt)).toOption
+    case _ => None
+  }
+}
 
 class NettyClient(serverAddress: ServerAddress)(parseEvent: ParseEvent) {
 
