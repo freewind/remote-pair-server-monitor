@@ -1,6 +1,6 @@
 package com.thoughtworks.pli.remotepair.monitor
 
-import javax.swing.JTextArea
+import javax.swing.{JCheckBox, JTextArea}
 
 import com.softwaremill.quicklens._
 import com.thoughtworks.pli.intellij.remotepair.protocol._
@@ -101,14 +101,25 @@ object NewDialog extends SimpleSwingApplication {
       }
 
       lazy val controlPanel = new BoxPanel(Horizontal) {
-        projectNames.map(_.map(projectName => new CheckBox(projectName))).foreach { boxes =>
-          listenTo(boxes: _*)
-          contents.clear()
-          contents ++= boxes
-          frame.pack()
+        var controls = Seq.empty[ProjectNameControl]
 
+        projectNames.map(names => {
+          val existingNames = controls.map(_.projectName)
+          (names.filterNot(existingNames.contains), existingNames.filterNot(names.contains))
+        }).map { case (newNames, removedNames) =>
+          newNames.map(new ProjectNameControl(_)) ++ controls.filterNot(ctrl => removedNames.contains(ctrl.projectName))
+        }.foreach { newControls =>
+          controls = newControls
+
+          contents.clear()
+          contents ++= newControls
+
+          frame.pack()
+          frame.repaint()
+
+          listenTo(newControls: _*)
           reactions += {
-            case ButtonClicked(_) => selectedProjectNames.onNext(boxes.filter(_.selected).map(_.text))
+            case ButtonClicked(_) => selectedProjectNames.onNext(newControls.filter(_.selected).map(_.text))
           }
         }
       }
@@ -137,4 +148,6 @@ class FileTree extends Tree {
 }
 
 
+class ProjectNameControl(val projectName: String) extends CheckBox(projectName) {
 
+}
