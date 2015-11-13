@@ -28,8 +28,8 @@ object models {
     val timestamp: Long
   }
 
-  case class ContentChange(version: Int, diffs: List[StringOperation], sourceClient: ClientIdName, timestamp: Long, id: String = new NewUuid().apply()) extends DocEvent
-  case class CaretMove(offset: Int, sourceClient: ClientIdName, timestamp: Long, id: String = new NewUuid().apply()) extends DocEvent
+  case class ContentChange(version: Int, diffs: List[StringOperation], sourceClient: ClientIdName, timestamp: Long, id: String) extends DocEvent
+  case class CaretMove(offset: Int, sourceClient: ClientIdName, timestamp: Long, id: String) extends DocEvent
 
   case class DocEventItemData(data: BaseContent \/ DocEvent) {
     override def toString: String = data match {
