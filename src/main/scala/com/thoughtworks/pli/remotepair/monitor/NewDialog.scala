@@ -1,16 +1,13 @@
 package com.thoughtworks.pli.remotepair.monitor
 
-import javax.swing.{JCheckBox, JTextArea}
-
 import com.softwaremill.quicklens._
 import com.thoughtworks.pli.intellij.remotepair.protocol._
 import com.thoughtworks.pli.intellij.remotepair.utils.NewUuid
 import com.thoughtworks.pli.remotepair.monitor.PairServerConnector.{Connected, Disconnected}
 import com.thoughtworks.pli.remotepair.monitor.models._
-import rx.lang.scala.{Subject, Observable}
-
-import com.softwaremill.quicklens._
 import rx.lang.scala.subjects.PublishSubject
+import rx.lang.scala.{Observable, Subject}
+
 import scala.swing.BorderPanel.Position._
 import scala.swing.Orientation._
 import scala.swing._
@@ -28,17 +25,19 @@ case class ProjectEvent[T](projectName: String, realEvent: T, timestamp: Long)
 trait PairEventStreams {
   val parseEvent = new ParseEvent
   lazy val newUuid = new NewUuid
-  def receivedPairEvents: Observable[PairEvent]
 
-  val projectEvents: Observable[ProjectEvent[PairEvent]] = receivedPairEvents.collect {
+  val receivedPairEvents: Observable[PairEvent]
+  val selectedProjectNames: Observable[Seq[String]]
+
+  lazy val projectEvents: Observable[ProjectEvent[PairEvent]] = receivedPairEvents.collect {
     case MonitorEvent(projectName, realEventMessage, timestamp) =>
       println("### case MonitorEvent(projectName, realEventMessage, timestamp)")
       ProjectEvent(projectName, parseEvent(realEventMessage), timestamp)
   }
 
-  val serverVersion: Observable[String] = receivedPairEvents.collect({ case ServerVersionInfo(version) => version })
+  lazy val serverVersion: Observable[String] = receivedPairEvents.collect({ case ServerVersionInfo(version) => version })
 
-  val projects: Observable[Projects] = receivedPairEvents.scan(Option.empty[Projects]) {
+  lazy val projects: Observable[Projects] = receivedPairEvents.scan(Option.empty[Projects]) {
     case (_, ServerStatusResponse(ps, _)) => Some(Projects(ps.map(info => Project(info.name)).toList))
     case (Some(ps), MonitorEvent(projectName, realEventMessage, timestamp)) => parseEvent(realEventMessage) match {
       case CreateDocumentConfirmation(path, version, content, sourceClient) =>
@@ -54,16 +53,13 @@ trait PairEventStreams {
     case _ => None
   }.collect({ case Some(p) => p })
 
-  val projectNames: Observable[Seq[String]] = projects.map(_.projects.map(_.name))
+  lazy val projectNames: Observable[Seq[String]] = projects.map(_.projects.map(_.name))
 
-  projectNames.foreach {
-    names => println("project names: " + names)
-  }
+  lazy val selectedProjects: Observable[Seq[Project]] = selectedProjectNames.withLatestFrom(projects) {
+    (names, projects) =>
 
-  val selectedProjectNames: Subject[Seq[String]] = PublishSubject[Seq[String]]()
-
-  val selectedProjects: Observable[Seq[Project]] = selectedProjectNames.combineLatestWith(projects) {
-    (names, projects) => names.flatMap(name => projects.projects.find(_.name == name))
+      println(s"### selectedProjects: $names, $projects")
+      names.flatMap(name => projects.projects.find(_.name == name))
   }
 
 }
@@ -73,12 +69,15 @@ object NewDialog extends SimpleSwingApplication with PairEventStreams {
 
   lazy val pairServerConnector = new PairServerConnector
 
-  override def receivedPairEvents = pairServerConnector.receivedEvents
+  override val receivedPairEvents = pairServerConnector.receivedEvents
+
+  override lazy val selectedProjectNames: Subject[Seq[String]] = PublishSubject[Seq[String]]()
 
   pairServerConnector.connectorEvents.foreach {
     case Connected(conn) => conn.write(ImMonitor.toMessage)
     case Disconnected => ???
   }
+
 
   override def top: Frame = new MainFrame {frame =>
     title = "monitor"
@@ -108,8 +107,8 @@ object NewDialog extends SimpleSwingApplication with PairEventStreams {
         selectedProjects map { projects =>
           val existingProjects = simpleMonitors.map(_.project)
           (projects.filterNot(existingProjects.contains), existingProjects.filterNot(projects.contains))
-        } map { case (newSelected, removed) =>
-          newSelected.map(new ProjectMonitor(_)) ++ simpleMonitors.filterNot(m => removed.contains(m.project))
+        } map { case (newSelectedProjects, removedProjects) =>
+          newSelectedProjects.map(new ProjectMonitor(_)) ++ simpleMonitors.filterNot(m => removedProjects.contains(m.project))
         } foreach { newMonitors =>
           simpleMonitors = newMonitors
 
