@@ -19,6 +19,7 @@ class PairEventStreamsSpec extends Specification with Mockito with NoTimeConvers
   newUuidMock.apply returns "uuid1" thenReturns "uuid2"
 
   val serverStatusResponse = new ServerStatusResponse(Seq(ProjectInfoData("p1", Nil, Nil, WorkingMode.CaretSharing), ProjectInfoData("p2", Nil, Nil, WorkingMode.CaretSharing)), 0)
+  val serverVersionInfo = new ServerVersionInfo("1.1.1")
   val createDocumentConfirmation = new MonitorEvent("p1", CreateDocumentConfirmation("/aaa", 1, Content("my-content", "UTF-8"), ClientIdName("client-id1", "client-name1")).toMessage, 111111)
   val changeContentConfirmation = new MonitorEvent("p1", ChangeContentConfirmation("event-id1", "/aaa", 1, Seq(Insert(1, "kk"), Delete(10, 3)), ClientIdName("client-id2", "client-name2")).toMessage, 222222)
   val moveCaretEvent = new MonitorEvent("p1", new MoveCaretEvent("/aaa", 10, ClientIdName("client-id3", "client-name3")).toMessage, 333333)
@@ -33,12 +34,9 @@ class PairEventStreamsSpec extends Specification with Mockito with NoTimeConvers
       }
       testSubscriber.getOnNextEvents.toList ==== List(new ProjectEvent("p1", new MoveCaretEvent("/aaa", 10, ClientIdName("client-id3", "client-name3")), 333333))
     }
-    "should only be converted and collected from `MonitorEvent` of MoveCaretEvent" >> {
-      val nonProjectEvents = Observable.just(serverStatusResponse)
-      val monitorEvents = Observable.just(createDocumentConfirmation, changeContentConfirmation, moveCaretEvent)
-
+    "should only be converted from more `MonitorEvent`s" >> {
       new PairEventStreams {
-        override val receivedPairEvents = nonProjectEvents ++ monitorEvents
+        override val receivedPairEvents = Observable.just(createDocumentConfirmation, changeContentConfirmation, moveCaretEvent)
         override val selectedProjectNames: Observable[Seq[String]] = Observable.never // dummy
         projectEvents.subscribe(testSubscriber)
       }
@@ -48,6 +46,14 @@ class PairEventStreamsSpec extends Specification with Mockito with NoTimeConvers
         new ProjectEvent("p1", new ChangeContentConfirmation("event-id1", "/aaa", 1, Seq(Insert(1, "kk"), Delete(10, 3)), ClientIdName("client-id2", "client-name2")), 222222),
         new ProjectEvent("p1", new MoveCaretEvent("/aaa", 10, ClientIdName("client-id3", "client-name3")), 333333)
       )
+    }
+    "should ignore non-`MonitorEvent`s" >> {
+      new PairEventStreams {
+        override val receivedPairEvents = Observable.just(serverStatusResponse, serverVersionInfo)
+        override val selectedProjectNames: Observable[Seq[String]] = Observable.never // dummy
+        projectEvents.subscribe(testSubscriber)
+      }
+      testSubscriber.getOnNextEvents.toList ==== Nil
     }
   }
 
